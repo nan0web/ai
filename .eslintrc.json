@@ -1,0 +1,26 @@
+{
+	"env": {
+		"node": true,
+		"es2022": true
+	},
+	"extends": "eslint:recommended",
+	"parserOptions": {
+		"sourceType": "module",
+		"ecmaVersion": "latest"
+	},
+	"rules": {
+		"no-case-declarations": "warn",
+		"no-unreachable": "warn",
+		"no-unused-vars": [
+			"warn",
+			{
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^(AI|Chat|Ui|ModelInfo|Usage|UiOutput|FileError|FileSystem|ChatOptions|Stream|Stats|FileSize|RESET|BLUE|TableOptions)$"
+			}
+		],
+		"no-empty": "warn",
+		"no-control-regex": "off",
+		"no-irregular-whitespace": "warn",
+		"no-constant-condition": "warn"
+	}
+}

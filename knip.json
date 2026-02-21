@@ -1,0 +1,38 @@
+{
+	"$schema": "https://unpkg.com/knip@latest/schema.json",
+	"entry": ["src/index.js", "src/TestAI.js"],
+	"project": [
+		"src/**/*.js",
+		"!src/cli/**",
+		"!src/commands/**",
+		"!src/release/**",
+		"!src/templates/**"
+	],
+	"ignore": [
+		"src/README.md.js",
+		"src/cli/**",
+		"src/commands/**",
+		"src/Chat.js",
+		"src/Chat/**",
+		"src/chatSteps.js",
+		"src/chatLoop.js",
+		"src/chatProgress.js",
+		"src/handleTestMode.js",
+		"src/selectModel.js",
+		"src/pack.js",
+		"src/unpack.js",
+		"src/system.js",
+		"src/FileProtocol.js",
+		"src/utils/FileSystem.js",
+		"src/utils/Git.js",
+		"src/utils/Path.js",
+		"src/utils/chatDownload.js"
+	],
+	"ignoreDependencies": [
+		"@nan0web/test",
+		"@ai-sdk/cerebras",
+		"@ai-sdk/huggingface",
+		"@ai-sdk/openai",
+		"@openrouter/ai-sdk-provider"
+	]
+}
