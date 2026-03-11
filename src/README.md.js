@@ -2,10 +2,10 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { DocsParser, DatasetParser } from '@nan0web/test'
 import FS from '@nan0web/db-fs'
-import { AI } from './AI.js'
-import { TestAI } from './TestAI.js'
-import { ModelInfo } from './ModelInfo.js'
-import { Usage } from './Usage.js'
+import { AI } from './domain/AI.js'
+import { TestAI } from './domain/TestAI.js'
+import { ModelInfo } from './domain/ModelInfo.js'
+import { Usage } from './domain/Usage.js'
 
 const fs = new FS()
 let pkg

@@ -5,8 +5,8 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { streamText, generateText } from 'ai'
 import { ModelProvider } from './ModelProvider.js'
 import { ModelInfo } from './ModelInfo.js'
-import { validateApiKey } from './ProviderConfig.js'
 import { Usage } from './Usage.js'
+import { ModelError } from '@nan0web/types'
 
 /** @typedef {"free" | "cheap" | "expensive"} AiStrategyFinance - mighe be available from the ModelInfo */
 /** @typedef {"low" | "mid" | "high"} AiStrategyVolume - might be extracted from hugging_face_id */
@@ -101,6 +101,24 @@ class AiStrategy {
 	}
 	/** @type {number | string} A budget for the current chat */
 	budget = AiStrategy.budget.default
+
+	static rateLimitDelayMs = {
+		help: 'Delay in milliseconds before retrying after a rate limit error',
+		default: 20000,
+	}
+	/** @type {number} */
+	rateLimitDelayMs = AiStrategy.rateLimitDelayMs.default
+
+	static rateLimitRetries = {
+		help: 'Number of retries when hitting rate limits (429)',
+		default: 1,
+	}
+	/** @type {number} */
+	rateLimitRetries = AiStrategy.rateLimitRetries.default
+
+	constructor(initial = {}) {
+		Object.assign(this, initial)
+	}
 
 	/**
 	 * @param {ModelInfo} model
@@ -333,11 +351,7 @@ export class AI {
 	 */
 	getProvider(provider) {
 		const [pro] = provider.split('/')
-		try {
-			validateApiKey(pro)
-		} catch (/** @type {any} */ err) {
-			throw new Error(err.message)
-		}
+		ModelProvider.validateApiKey(pro)
 		switch (pro) {
 			case 'openai':
 				return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -395,7 +409,10 @@ export class AI {
 				})
 				return openaiProvider
 			default:
-				throw new Error(`Unknown provider: ${provider}`)
+				throw new ModelError({
+					provider: ModelProvider.ui.errorUnsupportedProvider,
+					$provider: pro,
+				})
 		}
 	}
 
@@ -451,25 +468,64 @@ export class AI {
 		return result
 	}
 
-	/**
-	 * Generate text from a model (non‑streaming).
-	 *
-	 * @param {ModelInfo} model
-	 * @param {import('ai').ModelMessage[]} messages
-	 * @param {{ tools?: import('ai').ToolSet, maxSteps?: number }} [options={}]
-	 * @returns {Promise<{text: string, usage: Usage}>}
-	 */
 	async generateText(model, messages, options = {}) {
 		const { tools, maxSteps, system } = options
-		const provider = this.getProvider(model.provider)
-		const { text, usage } = await generateText({
-			model: provider(model.id),
-			messages,
-			system,
-			tools,
-			maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
-		})
-		return { text, usage: new Usage(usage) }
+		let currentModel = model
+		let attempts = this.strategy.rateLimitRetries || 0
+		const triedModels = new Set()
+		let lastError = null
+
+		while (true) {
+			const provider = this.getProvider(currentModel.provider)
+			try {
+				const { text, usage } = await generateText({
+					model: provider(currentModel.id),
+					messages,
+					system,
+					tools,
+					maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
+				})
+				return { text, usage: new Usage(usage), usedModel: currentModel.id, usedProvider: currentModel.provider }
+			} catch (err) {
+				lastError = err
+				const msg = err.message.toLowerCase()
+				const isRateLimit = msg.includes('429') || msg.includes('too many') || msg.includes('traffic') || msg.includes('limit exceeded') || msg.includes('rate limit')
+
+				if (isRateLimit && attempts > 0) {
+					console.warn(`[AI Strategy] Rate limit on ${currentModel.id}. Waiting ${this.strategy.rateLimitDelayMs / 1000}s... (retries left: ${attempts})`)
+					attempts--
+					if (this.strategy.rateLimitDelayMs > 0) {
+						await new Promise(r => setTimeout(r, this.strategy.rateLimitDelayMs))
+					}
+					continue
+				}
+
+				// Exclude the failed model
+				triedModels.add(currentModel.id + '@' + currentModel.provider)
+				
+				// Estimate tokens roughly
+				const estimatedTokens = JSON.stringify(messages).length / 4 
+				const safeAnswerTokens = 1000
+				
+				// Find all viable fallbacks
+				const fallbackCandidates = Array.from(this.#models.values()).filter(info => {
+					if (triedModels.has(info.id + '@' + info.provider)) return false
+					return !this.strategy.shouldChangeModel(info, estimatedTokens, safeAnswerTokens)
+				})
+
+				if (!fallbackCandidates.length) {
+					console.error(`[AI Strategy] Mapped sequence failed. No more fallback models available. Last error: ${err.message}`)
+					throw err
+				}
+
+				// Sort fallbacks by completion price
+				fallbackCandidates.sort((a, b) => (a.pricing?.completion || 0) - (b.pricing?.completion || 0))
+				
+				currentModel = fallbackCandidates[0]
+				console.warn(`[AI Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider})`)
+				attempts = this.strategy.rateLimitRetries || 0
+			}
+		}
 	}
 
 	/**
@@ -485,7 +541,10 @@ export class AI {
 		}
 		const found = this.strategy.findModel(this.#models, tokens, safeAnswerTokens)
 		if (!found) {
-			throw new Error('No such model found in ' + this.strategy.constructor.name)
+			throw new ModelError({
+				model: AI.ui?.errorModelNotFound || 'No such model found in {strategy}',
+				$strategy: this.strategy.constructor.name,
+			})
 		}
 		this.selectedModel = found
 		return found

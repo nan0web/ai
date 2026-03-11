@@ -21,8 +21,8 @@
  * used by the `cerebras.info` provider.
  */
 
-import { ModelInfo } from '../ModelInfo.js'
-import { Pricing } from '../Pricing.js'
+import { ModelInfo } from '../domain/ModelInfo.js'
+import { Pricing } from '../domain/Pricing.js'
 
 const CEREBRAS_MODELS_DATA = {
 	'llama-3.3-70b': {

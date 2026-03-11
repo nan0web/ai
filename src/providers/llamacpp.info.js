@@ -1,6 +1,6 @@
-import { ModelInfo } from '../ModelInfo.js'
-import { Pricing } from '../Pricing.js'
-import { Architecture } from '../Architecture.js'
+import { ModelInfo } from '../domain/ModelInfo.js'
+import { Pricing } from '../domain/Pricing.js'
+import { Architecture } from '../domain/Architecture.js'
 
 /**
  * Configuration for local llama.cpp models.

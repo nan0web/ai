@@ -12,12 +12,14 @@
  * @module llm/ModelProvider
  */
 
-import CerebrasInfo from './providers/cerebras.info.js'
-import HuggingFaceInfo from './providers/huggingface.info.js'
-import OpenrouterInfo from './providers/openrouter.info.js'
+import { ModelError } from '@nan0web/types'
+
+import CerebrasInfo from '../providers/cerebras.info.js'
+import HuggingFaceInfo from '../providers/huggingface.info.js'
+import OpenrouterInfo from '../providers/openrouter.info.js'
 import { ModelInfo } from './ModelInfo.js'
 import { Pricing } from './Pricing.js'
-import llamacppInfo from './providers/llamacpp.info.js'
+import llamacppInfo from '../providers/llamacpp.info.js'
 
 const transformers = {
 	cerebras: CerebrasInfo.makeFlat,
@@ -72,6 +74,67 @@ export class ModelProvider {
 	#fs
 	/** @type {CacheConfig} */
 	#cache
+
+	static ui = {
+		errorApiKeyReq: '{provider} API key is missing. Set the {envVar} environment variable.',
+		errorCerebrasNotice: `Cerebras API key is missing. Set the {envVar} environment variable.\n\nTo get an API key:\n1. Visit https://inference-docs.cerebras.ai/\n2. Sign up and get your API key\n3. Export it: export {envVar}=your_key_here`,
+		errorUnsupportedProvider: 'Unsupported provider "{provider}"',
+		errorFetchFailed: 'Failed to fetch {url}: {status} {statusText}',
+	}
+
+	/**
+	 * Validates API key for a provider and throws if missing.
+	 * @param {string} provider - Provider name (e.g., 'openai')
+	 * @throws {ModelError} If API key is missing, with provider-specific help.
+	 */
+	static validateApiKey(provider) {
+		switch (provider) {
+			case 'cerebras':
+				if (!process.env.CEREBRAS_API_KEY) {
+					throw new ModelError({
+						api: ModelProvider.ui.errorCerebrasNotice,
+						$provider: 'Cerebras',
+						$envVar: 'CEREBRAS_API_KEY',
+					})
+				}
+				break
+			case 'openai':
+				if (!process.env.OPENAI_API_KEY) {
+					throw new ModelError({
+						api: ModelProvider.ui.errorApiKeyReq,
+						$provider: 'OpenAI',
+						$envVar: 'OPENAI_API_KEY',
+					})
+				}
+				break
+			case 'openrouter':
+				if (!process.env.OPENROUTER_API_KEY) {
+					throw new ModelError({
+						api: ModelProvider.ui.errorApiKeyReq,
+						$provider: 'OpenRouter',
+						$envVar: 'OPENROUTER_API_KEY',
+					})
+				}
+				break
+			case 'huggingface':
+				if (!(process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY)) {
+					throw new ModelError({
+						api: ModelProvider.ui.errorApiKeyReq,
+						$provider: 'Hugging Face',
+						$envVar: 'HF_TOKEN',
+					})
+				}
+				break
+			case 'llamacpp':
+				// No API key needed for local llama.cpp
+				break
+			default:
+				throw new ModelError({
+					provider: ModelProvider.ui.errorUnsupportedProvider,
+					$provider: provider,
+				})
+		}
+	}
 
 	constructor(input = {}) {
 		const { fs = null, cache = new CacheConfig() } = input
@@ -130,26 +193,18 @@ export class ModelProvider {
 	 * @returns {Promise<Array<Partial<ModelInfo> & {id: string}>>} Raw model data.
 	 */
 	async fetchFromProvider(provider) {
+		ModelProvider.validateApiKey(provider)
 		switch (provider) {
 			case 'cerebras':
-				if (!process.env.CEREBRAS_API_KEY) {
-					throw new Error('CEREBRAS_API_KEY required for Cerebras models')
-				}
 				return await this.#jsonFetch(`https://api.cerebras.ai/v1/models`, {
 					Authorization: `Bearer ${process.env.CEREBRAS_API_KEY}`,
 				})
 			case 'openrouter':
-				if (!process.env.OPENROUTER_API_KEY) {
-					throw new Error('OPENROUTER_API_KEY required for OpenRouter models')
-				}
 				return await this.#jsonFetch(`https://openrouter.ai/api/v1/models`, {
 					Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
 				})
 			case 'huggingface':
 				const HF_TOKEN = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY
-				if (!HF_TOKEN) {
-					throw new Error('HF_TOKEN required for Hugging Face models')
-				}
 				// Note: Hugging Face router API may not provide full model list; fallback to static.
 				// Endpoint for inference models: https://huggingface.co/docs/api-inference/models
 				try {
@@ -161,7 +216,7 @@ export class ModelProvider {
 					return [] // Fallback to static info only.
 				}
 			default:
-				throw new Error(`Unsupported provider "${provider}"`)
+				return []
 		}
 	}
 
@@ -186,7 +241,12 @@ export class ModelProvider {
 	async #jsonFetch(url, headers = {}) {
 		const resp = await this.fetch(url, { headers: { ...headers, Accept: 'application/json' } })
 		if (!resp.ok) {
-			throw new Error(`Failed to fetch ${url}: ${resp.status} ${resp.statusText}`)
+			throw new ModelError({
+				api: ModelProvider.ui.errorFetchFailed,
+				$url: url,
+				$status: resp.status,
+				$statusText: resp.statusText,
+			})
 		}
 		const json = /** @type {any} */ (await resp.json())
 		// Providers may return an array directly or wrap it in a property.

@@ -1,1 +1,1 @@
-Read [nan0web instructions](../../system.md)
+Read [project.md](./project.md)

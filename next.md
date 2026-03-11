@@ -1,46 +1,26 @@
-# 🧠 @nan0web/ai — Next Steps
+# План наступних дій (Next Steps)
 
-> - **Мета:** Повноцінна інтеграція `@nan0web/ai` в існуючі продукти
-> - **Споживачі:** `sun.app` (SunIntelligence), `llimo.app`, `@industrialbank/currencies`
+## 🏁 Виконано (Done)
+
+- [x] Рефакторинг структури: переміщено бізнес-логіку та класи в `src/domain/`.
+- [x] Очищено пакет від зайвих утиліт (`src/utils/yaml.js`).
+- [x] Інтегровано `ModelError` з `@nan0web/types` для всіх помилок.
+- [x] Впроваджено `Model-as-Schema` для помилок: винесено тексти повідомлень у `static ui` з підтримкою змінних `{provider}`, `{envVar}`.
+- [x] Централізовано валідацію API ключів у `ModelProvider.validateApiKey()`.
+- [x] Виправлено запуск тестів через глоб `src/**/*.test.js`.
+- [x] Оновлено `README.md.js` та згенеровано актуальний `README.md`.
+- [x] **Data-Driven Docs**: Створено кореневий роутер `project.md` та ієрархію `docs/uk/` і `docs/en/`.
+- [x] **Localize Workflow**: Зафіксовано нове правило для `docs-site.md` (копіювання `README.md` в `docs/en/README.md`).
+
+## 🚀 Найближчі плани (Todo)
+
+- [ ] **Interface Welding**: додати snapshot-тести для `ModelProvider` (імітація відповідей API).
+- [ ] **Strict i18n Typization**: перевірити використання термінів у `static ui` через словники.
+- [ ] **Docs Site**: Налаштувати npm скрипти (docs:dev / docs:build) для запуску документації через `nan0web.app`.
+- [ ] **AI Adapter**: розширити підтримку нових провайдерів через єдиний інтерфейс `ModelProvider`.
+- [ ] **Performance**: впровадити семантичний кеш для відповідей (за потреби).
 
 ---
 
-## 🟢 Крок 1: Інтеграція з sun.app
-
-Замінити `SunIntelligence.js` (хардкод Cerebras) на використання `@nan0web/ai`.
-
-```js
-// sun.app/src/ui-chat/SunIntelligence.js (НОВА ВЕРСІЯ)
-import { AI } from '@nan0web/ai'
-
-export class SunIntelligence {
-  constructor() {
-    this.ai = new AI() // auto-detect: CEREBRAS, OPENROUTER, OPENAI, LLAMACPP
-  }
-
-  async *ask(prompt, context, systemPromptOverride = null) {
-    const model = this.ai.findBestModel() // Стратегія вибору
-    yield* this.ai.streamText(model, [
-      { role: 'system', content: systemPromptOverride || this.getSystemPrompt(context) },
-      ...(context.history || []).slice(-20),
-      { role: 'user', content: prompt },
-    ])
-  }
-}
-```
-
-## 🟢 Крок 2: Авто-Fallback (429/402)
-
-Ядро вже має підтримку кількох провайдерів та `AiStrategy`, але потрібно додати автоматичний повтор запиту з іншою моделлю у разі падіння основного провайдера (наприклад, Cerebras видав 429 Rate Limit → автоматично переключити на HuggingFace/LlamaCpp).
-
-## 🟢 Крок 3: Перенесення Snapshot-тестів у CLI
-
-Реалізувати геніальну ідею мета-тестування (`test/spanshots/*.yaml` декларативного тестування генераторів). Оскільки генератори (`yield new Alert()`, `yield new Table()`) були перенесені з ядра `ai` до CLI (`llimo.app` / `@nan0web/ui-cli`), то цей Test Runner потрібно написати саме там:
-
-```yaml
-# Приклад декларативного тесту:
-argv: ['list', '--fix']
-run:
-  - Alert: Listed 0 chats.
-    $variant: info
-```
+**АрхіТехноМаг**
+— План зафіксовано для твОго повернення.

@@ -1,5 +1,5 @@
-import { ModelInfo } from '../ModelInfo.js'
-import { Pricing } from '../Pricing.js'
+import { ModelInfo } from '../domain/ModelInfo.js'
+import { Pricing } from '../domain/Pricing.js'
 
 /**
  * @param {object[]} models
