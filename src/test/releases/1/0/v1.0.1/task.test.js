@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootDir = path.resolve(__dirname, '../../../../')
+const rootDir = path.resolve(__dirname, '../../../../../../')
 
 describe('Release v1.0.1 - Refactoring & Architecture', () => {
 	it('moved domain models to src/domain/', async () => {
@@ -25,7 +25,7 @@ describe('Release v1.0.1 - Refactoring & Architecture', () => {
 	})
 
 	it('ModelProvider implements validateApiKey and Model-as-Schema ui', async () => {
-		const { ModelProvider } = await import('../../../../src/domain/ModelProvider.js')
+		const { ModelProvider } = await import('../../../../../../src/domain/ModelProvider.js')
 		assert.equal(typeof ModelProvider.validateApiKey, 'function', 'validateApiKey should be defined')
 		assert.ok(ModelProvider.ui, 'ModelProvider should have static ui for errors')
 	})

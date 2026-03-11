@@ -1,6 +1,6 @@
 {
 	"name": "@nan0web/ai",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Unified AI Kernel for NaN0Web ecosystem - LLM provider abstraction",
 	"type": "module",
 	"main": "src/index.js",
