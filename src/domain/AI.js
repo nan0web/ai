@@ -1,7 +1,3 @@
-import { createOpenAI } from '@ai-sdk/openai'
-import { createCerebras } from '@ai-sdk/cerebras'
-import { createHuggingFace } from '@ai-sdk/huggingface'
-import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { streamText, generateText } from 'ai'
 import { ModelProvider } from './ModelProvider.js'
 import { ModelInfo } from './ModelInfo.js'
@@ -253,6 +249,65 @@ export class AI {
 	}
 
 	/**
+	 * Computes a score for a given model based on the current strategy.
+	 * @param {ModelInfo} model
+	 * @param {number} estimatedTokens
+	 * @returns {number} The computed score. Returns 0 if it does not meet critical requirements.
+	 */
+	computeModelScore(model, estimatedTokens) {
+		if (this.strategy.shouldChangeModel(model, estimatedTokens)) return 0
+
+		let score = 100
+
+		// Adjust by finance
+		if (
+			this.strategy.finance === 'free' &&
+			(model.pricing.prompt > 0 || model.pricing.completion > 0)
+		) {
+			return 0
+		}
+		if (this.strategy.finance === 'cheap') {
+			score += model.pricing.completion === 0 ? 50 : 1 / (model.pricing.completion + 0.000001)
+		}
+
+		// Adjust by volume
+		if (this.strategy.volume === 'high' && model.volume && model.volume < 100e9) {
+			score *= 0.1
+		} else if (this.strategy.volume === 'low' && model.volume && model.volume > 20e9) {
+			score *= 0.1 // Penalize large models if low volume is requested
+		}
+
+		// Adjust by speed (rough estimation - smaller models are faster)
+		if (this.strategy.speed === 'fast' && model.volume && model.volume > 50e9) {
+			score *= 0.5
+		}
+
+		return score
+	}
+
+	/**
+	 * Builds a queue of fallback models sorted by their score.
+	 * @param {number} estimatedTokens
+	 * @param {Set<string>} [triedModels] Optional set of already tried model ids
+	 * @returns {ModelInfo[]} Sorted array of valid fallback models
+	 */
+	buildFallbackQueue(estimatedTokens = 1000, triedModels = new Set()) {
+		const candidates = Array.from(this.#models.values()).filter((info) => {
+			if (triedModels.has(info.id + '@' + info.provider)) return false
+			const score = this.computeModelScore(info, estimatedTokens)
+			if (score <= 0) return false
+
+			// Attach temporary score for sorting
+			info._tempScore = score
+			return true
+		})
+
+		// Sort by score descending
+		candidates.sort((a, b) => (b._tempScore || 0) - (a._tempScore || 0))
+		return candidates
+	}
+
+	/**
 	 * Get list of available models (after optional refresh).
 	 *
 	 * @returns {ModelInfo[]}
@@ -349,22 +404,31 @@ export class AI {
 	 * @param {string} provider
 	 * @returns {any}
 	 */
-	getProvider(provider) {
+	async getProvider(provider) {
 		const [pro] = provider.split('/')
 		ModelProvider.validateApiKey(pro)
 		switch (pro) {
-			case 'openai':
+			case 'openai': {
+				const { createOpenAI } = await import('@ai-sdk/openai')
 				return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
-			case 'cerebras':
+			}
+			case 'cerebras': {
+				const { createCerebras } = await import('@ai-sdk/cerebras')
 				return createCerebras({ apiKey: process.env.CEREBRAS_API_KEY })
-			case 'huggingface':
+			}
+			case 'huggingface': {
 				const HF_TOKEN = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY
+				const { createHuggingFace } = await import('@ai-sdk/huggingface')
 				return createHuggingFace({ apiKey: HF_TOKEN })
-			case 'openrouter':
+			}
+			case 'openrouter': {
+				const { createOpenRouter } = await import('@openrouter/ai-sdk-provider')
 				return createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
-			case 'llamacpp':
+			}
+			case 'llamacpp': {
 				const baseURL =
 					process.env.LLAMA_CPP_URL?.replace(/\/v1\/.*$/, '') || 'http://localhost:1234'
+				const { createOpenAI } = await import('@ai-sdk/openai')
 				const openaiProvider = createOpenAI({
 					apiKey: 'not-needed',
 					baseURL,
@@ -408,6 +472,7 @@ export class AI {
 					},
 				})
 				return openaiProvider
+			}
 			default:
 				throw new ModelError({
 					provider: ModelProvider.ui.errorUnsupportedProvider,
@@ -433,7 +498,7 @@ export class AI {
 	 * @param {import('ai').UIMessageStreamOptions<import('ai').UIMessage> & StreamOptions & { tools?: import('ai').ToolSet, maxSteps?: number }} [options={}]
 	 * @returns {import('ai').StreamTextResult<import('ai').ToolSet, any>}
 	 */
-	streamText(model, messages, options = {}) {
+	async streamText(model, messages, options = {}) {
 		const {
 			abortSignal,
 			onChunk,
@@ -446,26 +511,81 @@ export class AI {
 			system,
 		} = options
 
-		const provider = this.getProvider(model.provider)
-		const specific = provider(model.id)
+		let currentModel = model
+		let attempts = this.strategy.rateLimitRetries || 0
+		const triedModels = new Set()
+		let lastError = null
 
-		const result = streamText({
-			model: specific,
-			messages,
-			system,
-			abortSignal,
-			tools,
-			maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
-			onChunk,
-			onStepFinish,
-			onError: (err) => {
-				console.error('[AI Stream Error]', err)
-				onError?.(err)
-			},
-			onFinish,
-			onAbort,
-		})
-		return result
+		while (true) {
+			const provider = await this.getProvider(currentModel.provider)
+			try {
+				const specific = provider(currentModel.id)
+
+				const result = streamText({
+					model: specific,
+					messages,
+					system,
+					abortSignal,
+					tools,
+					maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
+					onChunk,
+					onStepFinish,
+					onError: (err) => {
+						console.error('[AI Stream Error]', err)
+						onError?.(err)
+					},
+					onFinish,
+					onAbort,
+				})
+
+				// Await a tick to allow synchronous or immediate throw to be caught
+				await new Promise((r) => setTimeout(r, 0))
+
+				return result
+			} catch (err) {
+				lastError = err
+				const msg = err.message.toLowerCase()
+				const isRateLimit =
+					msg.includes('429') ||
+					msg.includes('too many') ||
+					msg.includes('traffic') ||
+					msg.includes('limit exceeded') ||
+					msg.includes('rate limit')
+
+				if (isRateLimit && attempts > 0) {
+					console.warn(
+						`[AI Stream Strategy] Rate limit on ${currentModel.id}. Waiting ${this.strategy.rateLimitDelayMs / 1000}s... (retries left: ${attempts})`,
+					)
+					attempts--
+					if (this.strategy.rateLimitDelayMs > 0) {
+						await new Promise((r) => setTimeout(r, this.strategy.rateLimitDelayMs))
+					}
+					continue
+				}
+
+				// Exclude the failed model
+				triedModels.add(currentModel.id + '@' + currentModel.provider)
+
+				// Estimate tokens roughly
+				const estimatedTokens = JSON.stringify(messages).length / 4
+
+				// Find all viable fallbacks sorted by score
+				const fallbackCandidates = this.buildFallbackQueue(estimatedTokens, triedModels)
+
+				if (!fallbackCandidates.length) {
+					console.error(
+						`[AI Stream Strategy] Mapped sequence failed. No more fallback models available. Last error: ${err.message}`,
+					)
+					throw err
+				}
+
+				currentModel = fallbackCandidates[0]
+				console.warn(
+					`[AI Stream Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${currentModel._tempScore}`,
+				)
+				attempts = this.strategy.rateLimitRetries || 0
+			}
+		}
 	}
 
 	async generateText(model, messages, options = {}) {
@@ -476,7 +596,7 @@ export class AI {
 		let lastError = null
 
 		while (true) {
-			const provider = this.getProvider(currentModel.provider)
+			const provider = await this.getProvider(currentModel.provider)
 			try {
 				const { text, usage } = await generateText({
 					model: provider(currentModel.id),
@@ -485,44 +605,53 @@ export class AI {
 					tools,
 					maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
 				})
-				return { text, usage: new Usage(usage), usedModel: currentModel.id, usedProvider: currentModel.provider }
+				return {
+					text,
+					usage: new Usage(usage),
+					usedModel: currentModel.id,
+					usedProvider: currentModel.provider,
+				}
 			} catch (err) {
 				lastError = err
 				const msg = err.message.toLowerCase()
-				const isRateLimit = msg.includes('429') || msg.includes('too many') || msg.includes('traffic') || msg.includes('limit exceeded') || msg.includes('rate limit')
+				const isRateLimit =
+					msg.includes('429') ||
+					msg.includes('too many') ||
+					msg.includes('traffic') ||
+					msg.includes('limit exceeded') ||
+					msg.includes('rate limit')
 
 				if (isRateLimit && attempts > 0) {
-					console.warn(`[AI Strategy] Rate limit on ${currentModel.id}. Waiting ${this.strategy.rateLimitDelayMs / 1000}s... (retries left: ${attempts})`)
+					console.warn(
+						`[AI Strategy] Rate limit on ${currentModel.id}. Waiting ${this.strategy.rateLimitDelayMs / 1000}s... (retries left: ${attempts})`,
+					)
 					attempts--
 					if (this.strategy.rateLimitDelayMs > 0) {
-						await new Promise(r => setTimeout(r, this.strategy.rateLimitDelayMs))
+						await new Promise((r) => setTimeout(r, this.strategy.rateLimitDelayMs))
 					}
 					continue
 				}
 
 				// Exclude the failed model
 				triedModels.add(currentModel.id + '@' + currentModel.provider)
-				
+
 				// Estimate tokens roughly
-				const estimatedTokens = JSON.stringify(messages).length / 4 
-				const safeAnswerTokens = 1000
-				
-				// Find all viable fallbacks
-				const fallbackCandidates = Array.from(this.#models.values()).filter(info => {
-					if (triedModels.has(info.id + '@' + info.provider)) return false
-					return !this.strategy.shouldChangeModel(info, estimatedTokens, safeAnswerTokens)
-				})
+				const estimatedTokens = JSON.stringify(messages).length / 4
+
+				// Find all viable fallbacks sorted by score
+				const fallbackCandidates = this.buildFallbackQueue(estimatedTokens, triedModels)
 
 				if (!fallbackCandidates.length) {
-					console.error(`[AI Strategy] Mapped sequence failed. No more fallback models available. Last error: ${err.message}`)
+					console.error(
+						`[AI Strategy] Mapped sequence failed. No more fallback models available. Last error: ${err.message}`,
+					)
 					throw err
 				}
 
-				// Sort fallbacks by completion price
-				fallbackCandidates.sort((a, b) => (a.pricing?.completion || 0) - (b.pricing?.completion || 0))
-				
 				currentModel = fallbackCandidates[0]
-				console.warn(`[AI Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider})`)
+				console.warn(
+					`[AI Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${currentModel._tempScore}`,
+				)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
 		}

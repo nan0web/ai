@@ -67,6 +67,8 @@ class CacheConfig {
 	}
 }
 
+export const ProviderConfig = {}
+
 export class ModelProvider {
 	/** @type {AvailableProvider[]} */
 	static AvailableProviders = ['cerebras', 'huggingface', 'openrouter', 'llamacpp']
