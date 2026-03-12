@@ -25,9 +25,10 @@
 		"node": ">=18"
 	},
 	"scripts": {
+		"build": "tsc",
 		"test": "node --test --test-timeout=3333 'src/**/*.test.js'",
 		"test:docs": "node --test src/README.md.js",
-		"test:all": "npm run test && npm run test:docs && npm run lint && npm run knip",
+		"test:all": "npm run test && npm run test:docs && npm run build && npm run lint && npm run knip",
 		"knip": "knip --production",
 		"lint": "prettier --check \"src/**/*.js\"",
 		"precommit": "npm test",

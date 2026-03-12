@@ -292,18 +292,18 @@ export class AI {
 	 * @returns {ModelInfo[]} Sorted array of valid fallback models
 	 */
 	buildFallbackQueue(estimatedTokens = 1000, triedModels = new Set()) {
+		const scores = new Map()
 		const candidates = Array.from(this.#models.values()).filter((info) => {
 			if (triedModels.has(info.id + '@' + info.provider)) return false
 			const score = this.computeModelScore(info, estimatedTokens)
 			if (score <= 0) return false
 
-			// Attach temporary score for sorting
-			info._tempScore = score
+			scores.set(info, score)
 			return true
 		})
 
 		// Sort by score descending
-		candidates.sort((a, b) => (b._tempScore || 0) - (a._tempScore || 0))
+		candidates.sort((a, b) => (scores.get(b) || 0) - (scores.get(a) || 0))
 		return candidates
 	}
 
@@ -402,7 +402,7 @@ export class AI {
 	 * Get provider instance for a model.
 	 *
 	 * @param {string} provider
-	 * @returns {any}
+	 * @returns {Promise<any>}
 	 */
 	async getProvider(provider) {
 		const [pro] = provider.split('/')
@@ -495,8 +495,8 @@ export class AI {
 	 *
 	 * @param {ModelInfo} model
 	 * @param {import('ai').ModelMessage[]} messages
-	 * @param {import('ai').UIMessageStreamOptions<import('ai').UIMessage> & StreamOptions & { tools?: import('ai').ToolSet, maxSteps?: number }} [options={}]
-	 * @returns {import('ai').StreamTextResult<import('ai').ToolSet, any>}
+	 * @param {import('ai').UIMessageStreamOptions<import('ai').UIMessage> & StreamOptions & { tools?: import('ai').ToolSet, maxSteps?: number, system?: string }} [options={}]
+	 * @returns {Promise<import('ai').StreamTextResult<import('ai').ToolSet, any>>}
 	 */
 	async streamText(model, messages, options = {}) {
 		const {
@@ -521,12 +521,14 @@ export class AI {
 			try {
 				const specific = provider(currentModel.id)
 
+				// @ts-ignore
 				const result = streamText({
 					model: specific,
 					messages,
 					system,
 					abortSignal,
 					tools,
+					// @ts-ignore
 					maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
 					onChunk,
 					onStepFinish,
@@ -544,7 +546,7 @@ export class AI {
 				return result
 			} catch (err) {
 				lastError = err
-				const msg = err.message.toLowerCase()
+				const msg = String(/** @type {any} */ (err).message || err).toLowerCase()
 				const isRateLimit =
 					msg.includes('429') ||
 					msg.includes('too many') ||
@@ -574,14 +576,14 @@ export class AI {
 
 				if (!fallbackCandidates.length) {
 					console.error(
-						`[AI Stream Strategy] Mapped sequence failed. No more fallback models available. Last error: ${err.message}`,
+						`[AI Stream Strategy] Mapped sequence failed. No more fallback models available. Last error: ${/** @type {any} */ (err).message}`,
 					)
 					throw err
 				}
 
 				currentModel = fallbackCandidates[0]
 				console.warn(
-					`[AI Stream Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${currentModel._tempScore}`,
+					`[AI Stream Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${this.computeModelScore(currentModel, estimatedTokens)}`,
 				)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
@@ -598,11 +600,13 @@ export class AI {
 		while (true) {
 			const provider = await this.getProvider(currentModel.provider)
 			try {
+				// @ts-ignore
 				const { text, usage } = await generateText({
 					model: provider(currentModel.id),
 					messages,
 					system,
 					tools,
+					// @ts-ignore
 					maxSteps: tools && Object.keys(tools).length > 0 ? maxSteps || 5 : undefined,
 				})
 				return {
@@ -613,7 +617,7 @@ export class AI {
 				}
 			} catch (err) {
 				lastError = err
-				const msg = err.message.toLowerCase()
+				const msg = String(/** @type {any} */ (err).message || err).toLowerCase()
 				const isRateLimit =
 					msg.includes('429') ||
 					msg.includes('too many') ||
@@ -643,14 +647,14 @@ export class AI {
 
 				if (!fallbackCandidates.length) {
 					console.error(
-						`[AI Strategy] Mapped sequence failed. No more fallback models available. Last error: ${err.message}`,
+						`[AI Strategy] Mapped sequence failed. No more fallback models available. Last error: ${/** @type {any} */ (err).message}`,
 					)
 					throw err
 				}
 
 				currentModel = fallbackCandidates[0]
 				console.warn(
-					`[AI Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${currentModel._tempScore}`,
+					`[AI Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${this.computeModelScore(currentModel, estimatedTokens)}`,
 				)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
@@ -671,7 +675,8 @@ export class AI {
 		const found = this.strategy.findModel(this.#models, tokens, safeAnswerTokens)
 		if (!found) {
 			throw new ModelError({
-				model: AI.ui?.errorModelNotFound || 'No such model found in {strategy}',
+				model:
+					/** @type {any} */ (AI).ui?.errorModelNotFound || 'No such model found in {strategy}',
 				$strategy: this.strategy.constructor.name,
 			})
 		}

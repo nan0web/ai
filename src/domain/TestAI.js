@@ -91,10 +91,15 @@ export class TestAI extends AI {
 	 * @param {any} model
 	 * @param {ModelMessage[]} messages
 	 * @param {object} [options]
-	 * @returns {Promise<{text: string, usage: Usage}>}
+	 * @returns {Promise<{text: string, usage: Usage, usedModel: any, usedProvider: any}>}
 	 */
 	async generateText(model, messages, options = {}) {
 		const result = await this.streamText(model, messages, options)
-		return { text: result.text, usage: result.usage }
+		return {
+			text: result.text,
+			usage: result.usage,
+			usedModel: model?.id,
+			usedProvider: model?.provider,
+		}
 	}
 }
