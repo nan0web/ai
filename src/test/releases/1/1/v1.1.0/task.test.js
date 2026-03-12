@@ -9,7 +9,7 @@ const rootDir = path.resolve(__dirname, '../../../../')
 
 describe('Release v1.1.0 - Scoring Matrix & Exports', () => {
 	it('exports all necessary models including ProviderConfig', async () => {
-		const aiPackage = await import('../../../../src/index.js')
+		const aiPackage = await import('../../../../../index.js')
 		assert.ok(aiPackage.AI, 'AI should be exported')
 		assert.ok(aiPackage.ModelProvider, 'ModelProvider should be exported')
 		assert.ok(aiPackage.ProviderConfig, 'ProviderConfig should be exported')
@@ -17,7 +17,7 @@ describe('Release v1.1.0 - Scoring Matrix & Exports', () => {
 	})
 	
 	it('AI implements scoring logic and fallback queue', async () => {
-		const { AI } = await import('../../../../src/domain/AI.js')
+		const { AI } = await import('../../../../../domain/AI.js')
 		const ai = new AI()
 		
 		assert.equal(typeof ai.computeModelScore, 'function', 'AI must implement computeModelScore')

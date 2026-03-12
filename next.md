@@ -11,13 +11,13 @@
 - [x] Оновлено `README.md.js` та згенеровано актуальний `README.md`.
 - [x] **Data-Driven Docs**: Створено кореневий роутер `project.md` та ієрархію `docs/uk/` і `docs/en/`.
 - [x] **Localize Workflow**: Зафіксовано нове правило для `docs-site.md` (копіювання `README.md` в `docs/en/README.md`).
+- [x] **AI Adapter**: розширено підтримку нових провайдерів через єдиний інтерфейс `ModelProvider` та додано скоринг-матрицю для черги фолбеку.
 
 ## 🚀 Найближчі плани (Todo)
 
 - [ ] **Interface Welding**: додати snapshot-тести для `ModelProvider` (імітація відповідей API).
 - [ ] **Strict i18n Typization**: перевірити використання термінів у `static ui` через словники.
 - [ ] **Docs Site**: Налаштувати npm скрипти (docs:dev / docs:build) для запуску документації через `nan0web.app`.
-- [ ] **AI Adapter**: розширити підтримку нових провайдерів через єдиний інтерфейс `ModelProvider`.
 - [ ] **Performance**: впровадити семантичний кеш для відповідей (за потреби).
 
 ---

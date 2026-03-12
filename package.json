@@ -9,14 +9,17 @@
 		"./test": "./src/domain/TestAI.js"
 	},
 	"files": [
-		"src/**/*.js",
-		"src/**/*.jsonl",
+		"package.json",
+		"LICENSE",
+		"README.md",
+		"bin",
+		"src",
+		"types",
 		"!src/**/*.test.js",
-		"!src/cli/**",
-		"!src/commands/**",
-		"!src/release/**",
-		"!src/templates/**",
-		"README.md"
+		"!src/**/*.test.jsx",
+		"!src/test",
+		"!src/README.md.js",
+		"!src/README.md.jsx"
 	],
 	"engines": {
 		"node": ">=18"
