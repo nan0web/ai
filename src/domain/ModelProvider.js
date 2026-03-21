@@ -20,12 +20,16 @@ import OpenrouterInfo from '../providers/openrouter.info.js'
 import { ModelInfo } from './ModelInfo.js'
 import { Pricing } from './Pricing.js'
 import llamacppInfo from '../providers/llamacpp.info.js'
+import GoogleInfo from '../providers/google.info.js'
+import GroqInfo from '../providers/groq.info.js'
 
 const transformers = {
 	cerebras: CerebrasInfo.makeFlat,
 	huggingface: HuggingFaceInfo.makeFlat,
 	openrouter: OpenrouterInfo.makeFlat,
 	llamacpp: llamacppInfo.makeFlat,
+	google: GoogleInfo.makeFlat,
+	groq: GroqInfo.makeFlat,
 }
 
 /** @typedef {"cerebras" | "openrouter" | "huggingface" | "llamacpp"} AvailableProvider */
@@ -71,7 +75,7 @@ export const ProviderConfig = {}
 
 export class ModelProvider {
 	/** @type {AvailableProvider[]} */
-	static AvailableProviders = ['cerebras', 'huggingface', 'openrouter', 'llamacpp']
+	static AvailableProviders = ['cerebras', 'huggingface', 'openrouter', 'llamacpp', 'google', 'groq']
 	/** @type {any} */
 	#fs
 	/** @type {CacheConfig} */
@@ -85,48 +89,75 @@ export class ModelProvider {
 	}
 
 	/**
+	 * Returns true if the API key for the provider is present.
+	 * @param {string} provider
+	 * @returns {boolean}
+	 */
+	static hasApiKey(provider) {
+		switch (provider) {
+			case 'cerebras':
+				return !!process.env.CEREBRAS_API_KEY
+			case 'openai':
+				return !!process.env.OPENAI_API_KEY
+			case 'openrouter':
+				return !!process.env.OPENROUTER_API_KEY
+			case 'huggingface':
+				return !!(process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY)
+			case 'google':
+				return !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY)
+			case 'groq':
+				return !!process.env.GROQ_API_KEY
+			case 'llamacpp':
+				return true
+			default:
+				return false
+		}
+	}
+
+	/**
 	 * Validates API key for a provider and throws if missing.
 	 * @param {string} provider - Provider name (e.g., 'openai')
 	 * @throws {ModelError} If API key is missing, with provider-specific help.
 	 */
 	static validateApiKey(provider) {
+		if (this.hasApiKey(provider)) return
 		switch (provider) {
 			case 'cerebras':
-				if (!process.env.CEREBRAS_API_KEY) {
-					throw new ModelError({
-						api: ModelProvider.ui.errorCerebrasNotice,
-						$provider: 'Cerebras',
-						$envVar: 'CEREBRAS_API_KEY',
-					})
-				}
-				break
+				throw new ModelError({
+					api: ModelProvider.ui.errorCerebrasNotice,
+					$provider: 'Cerebras',
+					$envVar: 'CEREBRAS_API_KEY',
+				})
 			case 'openai':
-				if (!process.env.OPENAI_API_KEY) {
-					throw new ModelError({
-						api: ModelProvider.ui.errorApiKeyReq,
-						$provider: 'OpenAI',
-						$envVar: 'OPENAI_API_KEY',
-					})
-				}
-				break
+				throw new ModelError({
+					api: ModelProvider.ui.errorApiKeyReq,
+					$provider: 'OpenAI',
+					$envVar: 'OPENAI_API_KEY',
+				})
 			case 'openrouter':
-				if (!process.env.OPENROUTER_API_KEY) {
-					throw new ModelError({
-						api: ModelProvider.ui.errorApiKeyReq,
-						$provider: 'OpenRouter',
-						$envVar: 'OPENROUTER_API_KEY',
-					})
-				}
-				break
+				throw new ModelError({
+					api: ModelProvider.ui.errorApiKeyReq,
+					$provider: 'OpenRouter',
+					$envVar: 'OPENROUTER_API_KEY',
+				})
 			case 'huggingface':
-				if (!(process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY)) {
-					throw new ModelError({
-						api: ModelProvider.ui.errorApiKeyReq,
-						$provider: 'Hugging Face',
-						$envVar: 'HF_TOKEN',
-					})
-				}
-				break
+				throw new ModelError({
+					api: ModelProvider.ui.errorApiKeyReq,
+					$provider: 'Hugging Face',
+					$envVar: 'HF_TOKEN',
+				})
+			case 'google':
+				throw new ModelError({
+					api: ModelProvider.ui.errorApiKeyReq,
+					$provider: 'Google',
+					$envVar: 'GOOGLE_API_KEY',
+				})
+			case 'groq':
+				throw new ModelError({
+					api: ModelProvider.ui.errorApiKeyReq,
+					$provider: 'Groq',
+					$envVar: 'GROQ_API_KEY',
+				})
 			case 'llamacpp':
 				// No API key needed for local llama.cpp
 				break
@@ -217,6 +248,13 @@ export class ModelProvider {
 					console.debug(`HF fetch failed, using static: ${err.message}`)
 					return [] // Fallback to static info only.
 				}
+			case 'google':
+				// @todo implement fetch models from google
+				return []
+			case 'groq':
+				return await this.#jsonFetch(`https://api.groq.com/openai/v1/models`, {
+					Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+				})
 			default:
 				return []
 		}
@@ -362,10 +400,14 @@ export class ModelProvider {
 				try {
 					// Try cache first.
 					const cached = noCache ? null : await this.loadCache(name)
-					raw = cached ?? (await this.fetchFromProvider(name))
-					if (!noCache && !cached) await this.writeCache(raw, name)
+					if (cached) {
+						raw = cached
+					} else if (ModelProvider.hasApiKey(name)) {
+						raw = await this.fetchFromProvider(name)
+						if (!noCache) await this.writeCache(raw, name)
+					}
 				} catch (/** @type {any} */ err) {
-					console.warn(`Fetch failed for ${name}, using static: ${err.message}`)
+					console.debug(`Fetch failed for ${name}, using static: ${err.message}`)
 					raw = [] // Rely on predefined.
 				}
 
@@ -373,7 +415,7 @@ export class ModelProvider {
 				onData(name, raw, flat)
 				all.push(...flat)
 			} catch (/** @type {any} */ err) {
-				console.warn(`Failed to process ${name}: ${err.message}`)
+				console.debug(`Failed to process ${name}: ${err.message}`)
 			}
 		}
 

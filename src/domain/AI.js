@@ -128,8 +128,7 @@ class AiStrategy {
 		if (model.per_request_limit > 0 && model.per_request_limit < tokens) return true
 		if (model.maximum_output > 0 && model.maximum_output < safeAnswerTokens) return true
 		if (model.pricing.prompt < 0 || model.pricing.completion < 0) return true
-		if (model.volume && model.volume < 100e9) return true
-		if (model.id.endsWith(':free')) return true
+		// Volume та Finance фільтрація — тепер через computeModelScore() (Multiplier = 0)
 		return false
 	}
 	/**
@@ -169,6 +168,9 @@ export class AI {
 
 	/** @type {ModelInfo?} */
 	selectedModel = null
+
+	/** @type {Set<string>} */
+	#blacklistedModels = new Set()
 
 	/**
 	 * @param {Object} input
@@ -249,7 +251,12 @@ export class AI {
 	}
 
 	/**
-	 * Computes a score for a given model based on the current strategy.
+	 * Мультиплікативна Скоринг-Матриця.
+	 *
+	 * Кожен критерій повертає множник (0.0 - 2.0).
+	 * Якщо ХОЧА Б ОДИН множник = 0 → фінальний score = 0 (модель відкидається).
+	 * Це замінює купу if/return 0 на єдину формулу.
+	 *
 	 * @param {ModelInfo} model
 	 * @param {number} estimatedTokens
 	 * @returns {number} The computed score. Returns 0 if it does not meet critical requirements.
@@ -257,32 +264,97 @@ export class AI {
 	computeModelScore(model, estimatedTokens) {
 		if (this.strategy.shouldChangeModel(model, estimatedTokens)) return 0
 
-		let score = 100
+		const multipliers = [
+			this.#scoreFinance(model),
+			this.#scoreVolume(model),
+			this.#scoreSpeed(model),
+			this.#scoreContextFit(model, estimatedTokens),
+		]
 
-		// Adjust by finance
-		if (
-			this.strategy.finance === 'free' &&
-			(model.pricing.prompt > 0 || model.pricing.completion > 0)
-		) {
-			return 0
+		// Мультиплікативний результат: якщо хоча б один = 0, все = 0
+		return multipliers.reduce((acc, m) => acc * m, 100)
+	}
+
+	// ── Приватні множники ──────────────────────────────────
+
+	/**
+	 * Finance Multiplier
+	 * - strategy.finance === 'free' → тільки моделі з pricing = 0 → Multiplier = 0 для платних
+	 * - strategy.finance === 'cheap' → бонус для дешевих
+	 * - strategy.finance === 'expensive' → без обмежень
+	 *
+	 * @param {ModelInfo} model
+	 * @returns {number}
+	 */
+	#scoreFinance(model) {
+		const isFree = model.pricing.prompt === 0 && model.pricing.completion === 0
+		if (this.strategy.finance === 'free') {
+			return isFree ? 1.5 : 0 // Multiplier = 0 → модель випадає
 		}
 		if (this.strategy.finance === 'cheap') {
-			score += model.pricing.completion === 0 ? 50 : 1 / (model.pricing.completion + 0.000001)
+			return isFree ? 1.5 : 1 / (1 + model.pricing.completion * 1000)
 		}
+		return 1.0 // expensive: все підходить
+	}
 
-		// Adjust by volume
-		if (this.strategy.volume === 'high' && model.volume && model.volume < 100e9) {
-			score *= 0.1
-		} else if (this.strategy.volume === 'low' && model.volume && model.volume > 20e9) {
-			score *= 0.1 // Penalize large models if low volume is requested
+	/**
+	 * Volume Multiplier (за кількістю параметрів моделі)
+	 * - 'low' → бонус для маленьких (< 20B)
+	 * - 'mid' → нейтральний
+	 * - 'high' → бонус для великих (> 100B)
+	 *
+	 * @param {ModelInfo} model
+	 * @returns {number}
+	 */
+	#scoreVolume(model) {
+		const vol = model.volume || 0
+		if (!vol) return 1.0 // невідомий volume — не штрафуємо
+
+		if (this.strategy.volume === 'high') {
+			return vol >= 100e9 ? 1.5 : vol >= 30e9 ? 1.0 : 0.3
 		}
-
-		// Adjust by speed (rough estimation - smaller models are faster)
-		if (this.strategy.speed === 'fast' && model.volume && model.volume > 50e9) {
-			score *= 0.5
+		if (this.strategy.volume === 'low') {
+			return vol <= 20e9 ? 1.5 : vol <= 50e9 ? 1.0 : 0.3
 		}
+		return 1.0 // mid: нейтральний
+	}
 
-		return score
+	/**
+	 * Speed Multiplier
+	 * Якщо pricing.speed > 0 (T/s відома), використовуємо.
+	 * Інакше — грубооцінка: менша модель = швидша.
+	 *
+	 * @param {ModelInfo} model
+	 * @returns {number}
+	 */
+	#scoreSpeed(model) {
+		if (this.strategy.speed === 'fast') {
+			// Якщо є реальна швидкість
+			if (model.pricing.speed > 0) {
+				return model.pricing.speed >= 100 ? 1.5 : model.pricing.speed >= 30 ? 1.0 : 0.5
+			}
+			// Грубооцінка по об'єму
+			const vol = model.volume || 0
+			return vol > 100e9 ? 0.5 : 1.0
+		}
+		return 1.0 // slow: все підходить
+	}
+
+	/**
+	 * Context Length Fit — бонус за "комфортний" запас контексту.
+	 * Модель з 2x більшим контекстом за потребу отримує бонус.
+	 *
+	 * @param {ModelInfo} model
+	 * @param {number} estimatedTokens
+	 * @returns {number}
+	 */
+	#scoreContextFit(model, estimatedTokens) {
+		if (!model.context_length || !estimatedTokens) return 1.0
+		const ratio = model.context_length / (estimatedTokens + 1000)
+		if (ratio >= 3) return 1.3 // 3x запас
+		if (ratio >= 1.5) return 1.1 // 1.5x запас
+		if (ratio >= 1) return 1.0 // впритул
+		return 0 // не влізаємо (shouldChangeModel мав це зловити, але для безпеки)
 	}
 
 	/**
@@ -294,7 +366,8 @@ export class AI {
 	buildFallbackQueue(estimatedTokens = 1000, triedModels = new Set()) {
 		const scores = new Map()
 		const candidates = Array.from(this.#models.values()).filter((info) => {
-			if (triedModels.has(info.id + '@' + info.provider)) return false
+			const cacheKey = info.id + '@' + info.provider
+			if (triedModels.has(cacheKey) || this.#blacklistedModels.has(cacheKey)) return false
 			const score = this.computeModelScore(info, estimatedTokens)
 			if (score <= 0) return false
 
@@ -473,6 +546,14 @@ export class AI {
 				})
 				return openaiProvider
 			}
+			case 'google': {
+				const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
+				return createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY })
+			}
+			case 'groq': {
+				const { createGroq } = await import('@ai-sdk/groq')
+				return createGroq({ apiKey: process.env.GROQ_API_KEY })
+			}
 			default:
 				throw new ModelError({
 					provider: ModelProvider.ui.errorUnsupportedProvider,
@@ -555,9 +636,7 @@ export class AI {
 					msg.includes('rate limit')
 
 				if (isRateLimit && attempts > 0) {
-					console.warn(
-						`[AI Stream Strategy] Rate limit on ${currentModel.id}. Waiting ${this.strategy.rateLimitDelayMs / 1000}s... (retries left: ${attempts})`,
-					)
+					console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Rate limit 429, retry ${attempts})\x1b[0m`)
 					attempts--
 					if (this.strategy.rateLimitDelayMs > 0) {
 						await new Promise((r) => setTimeout(r, this.strategy.rateLimitDelayMs))
@@ -566,7 +645,8 @@ export class AI {
 				}
 
 				// Exclude the failed model
-				triedModels.add(currentModel.id + '@' + currentModel.provider)
+				const currentKey = currentModel.id + '@' + currentModel.provider
+				triedModels.add(currentKey)
 
 				// Estimate tokens roughly
 				const estimatedTokens = JSON.stringify(messages).length / 4
@@ -575,16 +655,18 @@ export class AI {
 				const fallbackCandidates = this.buildFallbackQueue(estimatedTokens, triedModels)
 
 				if (!fallbackCandidates.length) {
-					console.error(
-						`[AI Stream Strategy] Mapped sequence failed. No more fallback models available. Last error: ${/** @type {any} */ (err).message}`,
-					)
+					console.error(`\x1b[31m    ✘ Failed: ${msg}\x1b[0m`)
 					throw err
 				}
 
 				currentModel = fallbackCandidates[0]
-				console.warn(
-					`[AI Stream Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${this.computeModelScore(currentModel, estimatedTokens)}`,
-				)
+				const isUnsupported = msg.includes('unsupported model version v3')
+				if (isUnsupported) {
+					this.#blacklistedModels.add(currentKey)
+					// Silently skip if it's the known "v3 protocol" error which means this provider/model combo is broken for us
+					continue
+				}
+				console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Error: ${msg.split('\n')[0]})\x1b[0m`)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
 		}
@@ -626,9 +708,7 @@ export class AI {
 					msg.includes('rate limit')
 
 				if (isRateLimit && attempts > 0) {
-					console.warn(
-						`[AI Strategy] Rate limit on ${currentModel.id}. Waiting ${this.strategy.rateLimitDelayMs / 1000}s... (retries left: ${attempts})`,
-					)
+					console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Rate limit 429, retry ${attempts})\x1b[0m`)
 					attempts--
 					if (this.strategy.rateLimitDelayMs > 0) {
 						await new Promise((r) => setTimeout(r, this.strategy.rateLimitDelayMs))
@@ -637,7 +717,8 @@ export class AI {
 				}
 
 				// Exclude the failed model
-				triedModels.add(currentModel.id + '@' + currentModel.provider)
+				const currentKey = currentModel.id + '@' + currentModel.provider
+				triedModels.add(currentKey)
 
 				// Estimate tokens roughly
 				const estimatedTokens = JSON.stringify(messages).length / 4
@@ -646,16 +727,18 @@ export class AI {
 				const fallbackCandidates = this.buildFallbackQueue(estimatedTokens, triedModels)
 
 				if (!fallbackCandidates.length) {
-					console.error(
-						`[AI Strategy] Mapped sequence failed. No more fallback models available. Last error: ${/** @type {any} */ (err).message}`,
-					)
+					console.error(`\x1b[31m    ✘ Failed: ${msg}\x1b[0m`)
 					throw err
 				}
 
 				currentModel = fallbackCandidates[0]
-				console.warn(
-					`[AI Strategy] Fallback to next best model: ${currentModel.id} (${currentModel.provider}) with score ${this.computeModelScore(currentModel, estimatedTokens)}`,
-				)
+				const isUnsupported = msg.includes('unsupported model version v3')
+				if (isUnsupported) {
+					this.#blacklistedModels.add(currentKey)
+					// Silently skip
+					continue
+				}
+				console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Error: ${msg.split('\n')[0]})\x1b[0m`)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
 		}

@@ -23,4 +23,25 @@ describe('Release v1.1.0 - Scoring Matrix & Exports', () => {
 		assert.equal(typeof ai.computeModelScore, 'function', 'AI must implement computeModelScore')
 		assert.equal(typeof ai.buildFallbackQueue, 'function', 'AI must implement buildFallbackQueue')
 	})
+
+	it('computeModelScore uses multiplicative matrix (contract)', async () => {
+		const { AI } = await import('../../../../../domain/AI.js')
+
+		const ai = new AI({
+			models: [
+				{ id: 'paid', provider: 'openai', pricing: { prompt: 1, completion: 1 }, context_length: 128000 },
+				{ id: 'free-model:free', provider: 'openrouter', pricing: { prompt: 0, completion: 0 }, context_length: 128000 },
+			],
+			strategy: new AI.Strategy({ finance: 'free' }),
+		})
+		const [paid, free] = ai.getModels()
+
+		// Paid model MUST be eliminated by finance multiplier = 0
+		assert.equal(ai.computeModelScore(paid, 100), 0, 'Paid model must score 0 with finance=free')
+
+		// Free model MUST pass — score is product of multipliers starting from 100
+		const freeScore = ai.computeModelScore(free, 100)
+		assert.ok(freeScore > 0, `Free model must score > 0, got ${freeScore}`)
+		assert.ok(freeScore > 100, `Free model gets 1.5x finance bonus, score must be > 100, got ${freeScore}`)
+	})
 })
