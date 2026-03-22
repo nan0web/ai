@@ -13,13 +13,13 @@
 		"LICENSE",
 		"README.md",
 		"bin",
-		"src",
+		"src/index.js",
+		"src/domain",
+		"src/providers",
 		"types",
-		"!src/**/*.test.js",
-		"!src/**/*.test.jsx",
-		"!src/test",
-		"!src/README.md.js",
-		"!src/README.md.jsx"
+		"!**/*.test.js",
+		"!**/*.test.jsx",
+		"!**/*.spec.js"
 	],
 	"engines": {
 		"node": ">=18"
@@ -49,8 +49,10 @@
 		"@ai-sdk/cerebras": "^1.0.39",
 		"@ai-sdk/huggingface": "^1.0.37",
 		"@ai-sdk/openai": "^2.0.98",
+		"@modelcontextprotocol/sdk": "^1.27.1",
 		"@openrouter/ai-sdk-provider": "^1.5.4",
-		"ai": "^5.0.150"
+		"ai": "^5.0.150",
+		"hnswlib-node": "^3.0.0"
 	},
 	"devDependencies": {
 		"@nan0web/db-fs": "^1.1.4",

@@ -160,6 +160,10 @@ class AiStrategy {
 export class AI {
 	static Strategy = AiStrategy
 
+	static ui = {
+		errorModelNotFound: 'No such model found in {strategy}',
+	}
+
 	/** @type {Map<string, ModelInfo>} */
 	#models = new Map()
 
@@ -758,8 +762,7 @@ export class AI {
 		const found = this.strategy.findModel(this.#models, tokens, safeAnswerTokens)
 		if (!found) {
 			throw new ModelError({
-				model:
-					/** @type {any} */ (AI).ui?.errorModelNotFound || 'No such model found in {strategy}',
+				model: AI.ui.errorModelNotFound,
 				$strategy: this.strategy.constructor.name,
 			})
 		}

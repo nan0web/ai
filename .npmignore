@@ -1,0 +1,9 @@
+src/README.md.js
+src/README.md.jsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+src/test/
+releases/
+seed.md
+next.md
