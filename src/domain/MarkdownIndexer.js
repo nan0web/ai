@@ -5,8 +5,8 @@ export class MarkdownIndexer {
 	}
 
 	/**
-	 * @param {string} markdown 
-	 * @param {Object} metadata 
+	 * @param {string} markdown
+	 * @param {Object} metadata
 	 * @returns {Array<{content: string} & Object>}
 	 */
 	chunkify(markdown, metadata = {}) {
@@ -16,7 +16,7 @@ export class MarkdownIndexer {
 
 		for (const section of sections) {
 			if (!section.trim()) continue
-			
+
 			// If section is reasonably sized, keep it
 			if (section.length <= this.maxChars) {
 				chunks.push({ content: section.trim(), ...metadata })
@@ -28,12 +28,11 @@ export class MarkdownIndexer {
 			let currentChunk = ''
 
 			for (const p of paragraphs) {
-				if ((currentChunk.length + p.length) > this.maxChars && currentChunk.length > 0) {
+				if (currentChunk.length + p.length > this.maxChars && currentChunk.length > 0) {
 					chunks.push({ content: currentChunk.trim(), ...metadata })
 					// Simple overlap: take the last ~overlap characters from currentChunk
-					const overlapStr = currentChunk.length > this.overlap 
-						? currentChunk.slice(-this.overlap) 
-						: currentChunk;
+					const overlapStr =
+						currentChunk.length > this.overlap ? currentChunk.slice(-this.overlap) : currentChunk
 					currentChunk = '... ' + overlapStr + '\n\n' + p
 				} else {
 					currentChunk += (currentChunk ? '\n\n' : '') + p

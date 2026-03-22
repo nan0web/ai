@@ -31,8 +31,11 @@
 	"ignoreDependencies": [
 		"@nan0web/test",
 		"@ai-sdk/cerebras",
+		"@ai-sdk/google",
+		"@ai-sdk/groq",
 		"@ai-sdk/huggingface",
 		"@ai-sdk/openai",
+		"@modelcontextprotocol/sdk",
 		"@openrouter/ai-sdk-provider"
 	]
 }

@@ -6,7 +6,10 @@
 	"main": "src/index.js",
 	"exports": {
 		".": "./src/index.js",
-		"./test": "./src/domain/TestAI.js"
+		"./test": "./src/domain/TestAI.js",
+		"./embedder": "./src/domain/Embedder.js",
+		"./vector": "./src/domain/VectorDB.js",
+		"./indexer": "./src/domain/MarkdownIndexer.js"
 	},
 	"files": [
 		"package.json",
@@ -29,6 +32,9 @@
 		"test": "node --test --test-timeout=3333 'src/**/*.test.js'",
 		"test:docs": "node --test src/README.md.js",
 		"test:all": "npm run test && npm run test:docs && npm run build && npm run lint && npm run knip",
+		"release:spec": "node --test 'releases/**/*.spec.js'",
+		"index": "node bin/index-workspace.js",
+		"query": "node bin/search-workspace.js",
 		"knip": "knip --production",
 		"lint": "prettier --check \"src/**/*.js\"",
 		"precommit": "npm test",
@@ -47,6 +53,8 @@
 	"license": "ISC",
 	"dependencies": {
 		"@ai-sdk/cerebras": "^1.0.39",
+		"@ai-sdk/google": "^3.0.52",
+		"@ai-sdk/groq": "^3.0.31",
 		"@ai-sdk/huggingface": "^1.0.37",
 		"@ai-sdk/openai": "^2.0.98",
 		"@modelcontextprotocol/sdk": "^1.27.1",

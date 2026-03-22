@@ -32,7 +32,7 @@ const transformers = {
 	groq: GroqInfo.makeFlat,
 }
 
-/** @typedef {"cerebras" | "openrouter" | "huggingface" | "llamacpp"} AvailableProvider */
+/** @typedef {"cerebras" | "openrouter" | "huggingface" | "llamacpp" | "google" | "groq"} AvailableProvider */
 /**
  * @typedef {Object} HuggingFaceProviderInfo
  * @property {string} provider
@@ -75,7 +75,14 @@ export const ProviderConfig = {}
 
 export class ModelProvider {
 	/** @type {AvailableProvider[]} */
-	static AvailableProviders = ['cerebras', 'huggingface', 'openrouter', 'llamacpp', 'google', 'groq']
+	static AvailableProviders = [
+		'cerebras',
+		'huggingface',
+		'openrouter',
+		'llamacpp',
+		'google',
+		'groq',
+	]
 	/** @type {any} */
 	#fs
 	/** @type {CacheConfig} */

@@ -9,6 +9,9 @@
  */
 export class AI {
     static Strategy: typeof AiStrategy;
+    static ui: {
+        errorModelNotFound: string;
+    };
     /**
      * @param {Object} input
      * @param {readonly[string, ModelInfo] | readonly [string, ModelInfo] | Map<string, ModelInfo>} [input.models=[]]
@@ -46,7 +49,12 @@ export class AI {
      */
     refreshModels(): Promise<void>;
     /**
-     * Computes a score for a given model based on the current strategy.
+     * Мультиплікативна Скоринг-Матриця.
+     *
+     * Кожен критерій повертає множник (0.0 - 2.0).
+     * Якщо ХОЧА Б ОДИН множник = 0 → фінальний score = 0 (модель відкидається).
+     * Це замінює купу if/return 0 на єдину формулу.
+     *
      * @param {ModelInfo} model
      * @param {number} estimatedTokens
      * @returns {number} The computed score. Returns 0 if it does not meet critical requirements.

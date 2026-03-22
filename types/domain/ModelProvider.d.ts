@@ -9,6 +9,12 @@ export class ModelProvider {
         errorFetchFailed: string;
     };
     /**
+     * Returns true if the API key for the provider is present.
+     * @param {string} provider
+     * @returns {boolean}
+     */
+    static hasApiKey(provider: string): boolean;
+    /**
      * Validates API key for a provider and throws if missing.
      * @param {string} provider - Provider name (e.g., 'openai')
      * @throws {ModelError} If API key is missing, with provider-specific help.
@@ -82,7 +88,7 @@ export class ModelProvider {
     flatten(raw: any[], name: AvailableProvider): ModelInfo[];
     #private;
 }
-export type AvailableProvider = "cerebras" | "openrouter" | "huggingface" | "llamacpp";
+export type AvailableProvider = "cerebras" | "openrouter" | "huggingface" | "llamacpp" | "google" | "groq";
 export type HuggingFaceProviderInfo = {
     provider: string;
     status: string;
@@ -95,7 +101,7 @@ export type HuggingFaceProviderInfo = {
     supports_structured_output: boolean;
     is_model_author: boolean;
 };
-/** @typedef {"cerebras" | "openrouter" | "huggingface" | "llamacpp"} AvailableProvider */
+/** @typedef {"cerebras" | "openrouter" | "huggingface" | "llamacpp" | "google" | "groq"} AvailableProvider */
 /**
  * @typedef {Object} HuggingFaceProviderInfo
  * @property {string} provider

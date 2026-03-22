@@ -6,10 +6,10 @@ export class VectorDB {
 		this.dim = config.dim || 1024
 		this.space = config.space || 'cosine'
 		this.maxElements = config.maxElements || 100000
-		
+
 		this.index = new hnswlib.HierarchicalNSW(this.space, this.dim)
 		this.index.initIndex(this.maxElements)
-		
+
 		this.metadata = new Map() // Internal map ID (int) -> Object mapping
 		this.nextId = 0
 	}
@@ -35,7 +35,7 @@ export class VectorDB {
 
 		const num = Math.min(k, this.metadata.size)
 		const results = this.index.searchKnn(arr, num)
-		
+
 		const output = []
 		for (let i = 0; i < results.neighbors.length; i++) {
 			const id = results.neighbors[i]
@@ -48,14 +48,14 @@ export class VectorDB {
 
 	async save(filePath) {
 		this.index.writeIndexSync(filePath)
-		
+
 		const metaPath = filePath + '.meta.json'
 		const mdJson = {
 			nextId: this.nextId,
 			dim: this.dim,
 			space: this.space,
 			maxElements: this.maxElements,
-			entries: Array.from(this.metadata.entries())
+			entries: Array.from(this.metadata.entries()),
 		}
 		await fs.writeFile(metaPath, JSON.stringify(mdJson))
 	}
@@ -67,17 +67,17 @@ export class VectorDB {
 		} catch {
 			return false // No file to load
 		}
-		
+
 		const metaContent = await fs.readFile(metaPath, 'utf-8').catch(() => '{}')
 		const metaObj = JSON.parse(metaContent)
 		if (metaObj.dim) this.dim = metaObj.dim
 		if (metaObj.space) this.space = metaObj.space
 		if (metaObj.maxElements) this.maxElements = metaObj.maxElements
-		
+
 		this.index = new hnswlib.HierarchicalNSW(this.space, this.dim)
 		this.index.initIndex(this.maxElements)
 		this.index.readIndexSync(filePath)
-		
+
 		this.nextId = metaObj.nextId || 0
 		this.metadata = new Map(metaObj.entries || [])
 		return true

@@ -1,13 +1,13 @@
 export class Embedder {
 	constructor(config = {}) {
 		this.baseURL = (config.baseURL || 'http://localhost:1234/v1').replace(/\/$/, '')
-		this.model = config.model || 'multilingual-e5-large-instruct-q8_0'
+		this.model = config.model || 'text-embedding-multilingual-e5-large-instruct'
 		this._fetch = config.fetch || globalThis.fetch.bind(globalThis)
 	}
 
 	/**
 	 * Computes embeddings for single or multiple inputs.
-	 * @param {string|string[]} input 
+	 * @param {string|string[]} input
 	 * @returns {Promise<number[] | number[][]>}
 	 */
 	async embed(input) {
@@ -18,7 +18,7 @@ export class Embedder {
 	}
 
 	/**
-	 * @param {string[]} texts 
+	 * @param {string[]} texts
 	 * @returns {Promise<number[][]>}
 	 */
 	async embedBatch(texts) {
@@ -28,8 +28,8 @@ export class Embedder {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				model: this.model,
-				input: texts
-			})
+				input: texts,
+			}),
 		})
 		if (!response.ok) {
 			const errText = await response.text().catch(() => '')
@@ -38,6 +38,6 @@ export class Embedder {
 		const data = await response.json()
 		// OpenAI compatible format expects { data: [ { index, embedding } ] }
 		const sorted = data.data.sort((a, b) => a.index - b.index)
-		return sorted.map(item => item.embedding)
+		return sorted.map((item) => item.embedding)
 	}
 }

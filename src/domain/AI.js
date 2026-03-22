@@ -552,7 +552,9 @@ export class AI {
 			}
 			case 'google': {
 				const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
-				return createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY })
+				return createGoogleGenerativeAI({
+					apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY,
+				})
 			}
 			case 'groq': {
 				const { createGroq } = await import('@ai-sdk/groq')
@@ -640,7 +642,9 @@ export class AI {
 					msg.includes('rate limit')
 
 				if (isRateLimit && attempts > 0) {
-					console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Rate limit 429, retry ${attempts})\x1b[0m`)
+					console.warn(
+						`\x1b[93m    ↻ Next Model: ${currentModel.id} (Rate limit 429, retry ${attempts})\x1b[0m`,
+					)
 					attempts--
 					if (this.strategy.rateLimitDelayMs > 0) {
 						await new Promise((r) => setTimeout(r, this.strategy.rateLimitDelayMs))
@@ -670,7 +674,9 @@ export class AI {
 					// Silently skip if it's the known "v3 protocol" error which means this provider/model combo is broken for us
 					continue
 				}
-				console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Error: ${msg.split('\n')[0]})\x1b[0m`)
+				console.warn(
+					`\x1b[93m    ↻ Next Model: ${currentModel.id} (Error: ${msg.split('\n')[0]})\x1b[0m`,
+				)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
 		}
@@ -712,7 +718,9 @@ export class AI {
 					msg.includes('rate limit')
 
 				if (isRateLimit && attempts > 0) {
-					console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Rate limit 429, retry ${attempts})\x1b[0m`)
+					console.warn(
+						`\x1b[93m    ↻ Next Model: ${currentModel.id} (Rate limit 429, retry ${attempts})\x1b[0m`,
+					)
 					attempts--
 					if (this.strategy.rateLimitDelayMs > 0) {
 						await new Promise((r) => setTimeout(r, this.strategy.rateLimitDelayMs))
@@ -742,7 +750,9 @@ export class AI {
 					// Silently skip
 					continue
 				}
-				console.warn(`\x1b[93m    ↻ Next Model: ${currentModel.id} (Error: ${msg.split('\n')[0]})\x1b[0m`)
+				console.warn(
+					`\x1b[93m    ↻ Next Model: ${currentModel.id} (Error: ${msg.split('\n')[0]})\x1b[0m`,
+				)
 				attempts = this.strategy.rateLimitRetries || 0
 			}
 		}

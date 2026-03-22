@@ -17,10 +17,12 @@
 ## 🚀 Найближчі плани (Todo)
 
 - [x] **Multiplicative Scoring Matrix**: імплементувати розумний вибір моделей на основі `volume`, `speed`, `finance` та множників (наприклад, Multiplier=0 для невідповідної довжини контексту).
+- [x] **Vector RAG v1.2.0**: HNSWLib VectorDB + Embedder (LM Studio) + MarkdownIndexer + MCP Server (`search_knowledge_base`).
 - [ ] **Interface Welding**: додати snapshot-тести для `ModelProvider` (імітація відповідей API).
 - [ ] **Strict i18n Typization**: перевірити використання термінів у `static ui` через словники.
 - [ ] **Docs Site**: Налаштувати npm скрипти (docs:dev / docs:build) для запуску документації через `nan0web.app`.
 - [ ] **Performance**: впровадити семантичний кеш для відповідей (за потреби).
+- [ ] **Vector RAG v1.3.0**: auto-reindex при зміні .md файлів (file watcher), інкрементальна індексація.
 
 ---
 
