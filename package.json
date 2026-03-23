@@ -1,6 +1,6 @@
 {
 	"name": "@nan0web/ai",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"description": "Unified AI Kernel for NaN0Web ecosystem - LLM provider abstraction",
 	"type": "module",
 	"main": "src/index.js",
@@ -15,14 +15,13 @@
 		"package.json",
 		"LICENSE",
 		"README.md",
-		"bin",
-		"src/index.js",
-		"src/domain",
-		"src/providers",
-		"types",
-		"!**/*.test.js",
-		"!**/*.test.jsx",
-		"!**/*.spec.js"
+		"bin/**/*.js",
+		"src/**/*.js",
+		"types/**/*.d.ts",
+		"!src/**/*.test.js",
+		"!src/**/*.spec.js",
+		"!src/test/**",
+		"!src/README.md.js"
 	],
 	"engines": {
 		"node": ">=18"

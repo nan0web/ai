@@ -8,3 +8,4 @@ reports/
 
 # Private agent under LICENSE
 .agent/
+package-lock.json
