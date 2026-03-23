@@ -15,13 +15,48 @@ import { MarkdownIndexer } from '../src/domain/MarkdownIndexer.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const pkgRoot = path.join(__dirname, '../')
 const defaultWorkspaceRoot = path.join(pkgRoot, '../../')
-const workspaceRoot = path.resolve(process.argv[2] || defaultWorkspaceRoot)
+
+let targetProject = null
+let explicitWorkspaceRoot = null
+
+const args = process.argv.slice(2)
+
+if (args.includes('--help') || args.includes('-h')) {
+	console.log(`
+\x1b[36m@nan0web/ai Workspace Indexer\x1b[0m
+
+Builds multi-level HNSW vector indices for apps, packages, and the root platform.
+
+\x1b[33mUsage:\x1b[0m
+  node bin/index-workspace.js [options]
+
+\x1b[33mOptions:\x1b[0m
+  -p, --project <name>   Re-index only specific projects matching this name
+                         (e.g., "-p 0HCnAI" matches "Package: 0HCnAI.framework").
+                         This skips all other projects.
+  -h, --help             Show this help message.
+
+By default, the script scans the entire monorepo starting from the package root.
+`)
+	process.exit(0)
+}
+
+for (let i = 0; i < args.length; i++) {
+	if (args[i] === '--project' || args[i] === '-p') {
+		targetProject = args[++i]
+	} else if (!args[i].startsWith('-') && !explicitWorkspaceRoot) {
+		explicitWorkspaceRoot = args[i]
+	}
+}
+
+const workspaceRoot = path.resolve(explicitWorkspaceRoot || defaultWorkspaceRoot)
 
 const EMBEDDER_URL = process.env.EMBEDDER_URL || 'http://localhost:1234/v1'
 const IGNORE_DIRS = ['node_modules', '.git', '.datasets', 'dist', 'coverage', '.next', 'chat']
 
 const embedder = new Embedder({ baseURL: EMBEDDER_URL })
-const indexer = new MarkdownIndexer({ maxChars: 3000, overlap: 200 })
+// Lower maxChars to 1200 to avoid hitting the 512 token limit of E5 models (especially for Cyrillic chars)
+const indexer = new MarkdownIndexer({ maxChars: 1200, overlap: 200 })
 
 function drawProgressBar(current, total, label = '') {
 	const cols = process.stdout.columns || 80
@@ -66,6 +101,7 @@ async function findMarkdownFiles(dir, isRootProject) {
 	async function scan(currentDir) {
 		const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch(() => [])
 		for (const entry of entries) {
+			if (entry.name.startsWith('.')) continue
 			if (IGNORE_DIRS.includes(entry.name)) continue
 			
 			// If we are scanning the Root Platform, do not descend into apps/ or packages/
@@ -94,7 +130,15 @@ async function main() {
 		const dim = test.length
 		console.log(`\x1b[32m✔ Embedder connected (Dimension: ${dim})\x1b[0m\n`)
 
-		const projects = await getProjects(workspaceRoot)
+		const allProjects = await getProjects(workspaceRoot)
+		const projects = targetProject 
+			? allProjects.filter(p => p.name.toLowerCase().includes(targetProject.toLowerCase()))
+			: allProjects
+
+		if (projects.length === 0) {
+			console.log(`\x1b[33mNo projects found matching "${targetProject}".\x1b[0m`)
+			return
+		}
 		
 		console.log(`\x1b[36m🔍 Scanning directories...\x1b[0m`)
 		let totalFiles = 0
@@ -120,10 +164,15 @@ async function main() {
 		drawProgressBar(globalProcessed, totalFiles, 'Global Progress')
 
 		for (const proj of projects) {
-			if (proj.files.length === 0) continue
-
 			const dsFolder = path.join(proj.dir, '.datasets')
 			const indexPath = path.join(dsFolder, 'workspace-index.bin')
+
+			if (proj.files.length === 0) {
+				await fs.unlink(indexPath).catch(() => {})
+				// Also try removing the .datasets directory if it's empty
+				await fs.rmdir(dsFolder).catch(() => {})
+				continue
+			}
 			const vdb = new VectorDB({ dim })
 			let totalChunks = 0
 
@@ -139,8 +188,8 @@ async function main() {
 				const chunks = indexer.chunkify(content, { file: relPath })
 
 				if (chunks.length > 0) {
-					// E5 models require 'passage: ' prefix for document embeddings
-					const texts = chunks.map(c => 'passage: ' + c.content)
+					// E5-instruct models require no document-side prefixes.
+					const texts = chunks.map(c => c.content)
 					const vectors = await embedder.embedBatch(texts)
 					for (let j = 0; j < chunks.length; j++) {
 						vdb.addVector(vectors[j], { file: relPath, content: chunks[j].content })

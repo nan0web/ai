@@ -91,6 +91,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 							type: 'number',
 							description: 'Number of results to return (default 5)',
 						},
+						max_distance: {
+							type: 'number',
+							description: 'Maximum distance threshold (default 0.18). For E5 multilingual models: <0.12 = perfect match, 0.12-0.15 = strong, 0.15-0.18 = cross-lingual match, >0.20 = garbage.',
+						},
 					},
 					required: ['query'],
 				},
@@ -104,25 +108,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 		const args = request.params.arguments || {}
 		const query = args.query
 		const targetProjects = args.projects
-		const k = args.k || 5
+		const k = args.k || 10
+		const maxDistance = args.max_distance || 0.18
 
 		try {
 			await initDatabases()
-			const vec = await embedder.embed('query: ' + query)
+			const instructPrefix = 'Instruct: Retrieve relevant documentation, workflows, and architectural details to assist the software engineer.\nQuery: '
+			const vec = await embedder.embed(instructPrefix + query)
 
 			let allResults = []
 
 			for (const [name, vdb] of databases.entries()) {
 				if (targetProjects && !targetProjects.includes(name)) continue
-				const res = vdb.search(vec, k)
+				// HNSW search is O(logN), so fetching 100 vs 20 takes the same <1ms time, 
+				// but guarantees we have enough candidates after deduplication.
+				const fetchCount = Math.max(k * 10, 100)
+				const res = vdb.search(vec, fetchCount)
 				for (const r of res) {
-					allResults.push({ project: name, ...r })
+					if (r.distance <= maxDistance) {
+						allResults.push({ project: name, ...r })
+					}
 				}
 			}
 
-			// Sort globally by distance (lower is better for HNSW usually)
+			// Sort globally by distance
 			allResults.sort((a, b) => a.distance - b.distance)
-			const topResults = allResults.slice(0, k)
+
+			// Deduplicate by file path (keep the best chunk for each file)
+			const seenFiles = new Set()
+			const topResults = []
+			for (const r of allResults) {
+				const uniqueKey = r.project + ':' + r.file
+				if (!seenFiles.has(uniqueKey)) {
+					seenFiles.add(uniqueKey)
+					topResults.push(r)
+					if (topResults.length === k) break
+				}
+			}
 
 			if (topResults.length === 0) {
 				return {

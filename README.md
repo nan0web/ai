@@ -136,6 +136,57 @@ How to verify the package engine requirement?
 
 - [PLAN.md](./PLAN.md) — Detailed architecture and API plan
 
+## RAG Configuration & Tools
+
+The package provides CLI utilities and an MCP server for indexing markdown files into multi-level HNSW vector indices using E5-Instruct embeddings.
+
+### 1. Indexing (`index-workspace.js`)
+
+Indexes all documentation packages across the monorepo (ignoring dot-files like `.agent`, `.datasets`).
+
+```bash
+# Index everything
+npm run index
+
+# Re-index a specific project uniquely (e.g. only 0HCnAI.framework)
+node bin/index-workspace.js -p 0HCnAI
+```
+
+Run with `--help` for more options:
+```bash
+node bin/index-workspace.js --help
+```
+
+### 2. Searching (`search-workspace.js`)
+
+Manually query your vector indices with semantic deduplication (prevents one long page from spamming the top 5 results):
+
+```bash
+pnpm query "How to generate galleries?" -p 0HCnAI -k 10 -d 0.15
+```
+
+- `-p <name>`: Target specific project (e.g. `0HCnAI`)
+- `-k <number>`: Number of unique files to return
+- `-d <distance>`: Semantic trash filter (distance > 0.15 is considered garbage for E5)
+- `--help`: View all options
+
+### 3. MCP Server (`mcp-server.js`)
+
+The AI package exposes a native Model Context Protocol Server so your agents can natively fetch context.
+
+Add to your `mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "nan0web-knowledge": {
+      "command": "node",
+      "args": ["/absolute/path/to/packages/ai/bin/mcp-server.js"]
+    }
+  }
+}
+```
+*Note: Ensure `EMBEDDER_URL` is set to your local model instance (e.g. LM Studio).*
+
 ## License
 
 How to check the license?

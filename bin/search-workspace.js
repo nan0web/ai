@@ -4,7 +4,8 @@
  * search-workspace.js — CLI tool to query the HNSW vector indices manually.
  *
  * Usage:
- *   node bin/search-workspace.js "query text" [--project "App: willni"] [-k 5]
+ * Usage:
+ *   node bin/search-workspace.js "query text" [--project "App: willni"] [-k 10] [-d 0.15]
  */
 
 import fs from 'node:fs/promises'
@@ -58,15 +59,55 @@ async function initDatabases() {
 
 async function main() {
 	const args = process.argv.slice(2)
+
+	if (args.includes('--help') || args.includes('-h')) {
+		console.log(`
+\x1b[36m@nan0web/ai Workspace Search\x1b[0m
+
+Queries the HNSW vector indices manually from the CLI.
+
+\x1b[33mUsage:\x1b[0m
+  node bin/search-workspace.js "query text" [options]
+
+\x1b[33mOptions:\x1b[0m
+  -p, --project <name>   Filter by project name(s). Supports comma-separated
+                         patterns matched as substrings (case-insensitive).
+                         Example: -p "ui,0HCnAI" matches all ui-* + 0HCnAI.framework.
+  -k <number>            Number of results to return (default: 10).
+  -d, --max-distance <n> Maximum distance threshold (default: 0.15).
+                         Values >0.15 typically indicate garbage for E5 models.
+  -l, --list             List all available indexed projects.
+  -h, --help             Show this help message.
+`)
+		process.exit(0)
+	}
+
+	if (args.includes('--list') || args.includes('-l')) {
+		await initDatabases()
+		console.log(`\n\x1b[36m📚 Available Indices (${databases.size}):\x1b[0m`)
+		
+		const names = Array.from(databases.keys()).sort()
+		for (const name of names) {
+			console.log(`  - \x1b[32m${name}\x1b[0m`)
+		}
+		console.log()
+		process.exit(0)
+	}
+
 	let query = ''
-	let targetProject = null
-	let k = 5
+	/** @type {string[]} */
+	let projectPatterns = []
+	let k = 10
+	let maxDistance = 0.15
 
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === '--project' || args[i] === '-p') {
-			targetProject = args[++i]
+			const val = args[++i] || ''
+			projectPatterns.push(...val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean))
 		} else if (args[i] === '-k') {
 			k = parseInt(args[++i], 10)
+		} else if (args[i] === '--max-distance' || args[i] === '-d') {
+			maxDistance = parseFloat(args[++i])
 		} else if (!args[i].startsWith('-')) {
 			query = args[i]
 		}
@@ -74,7 +115,7 @@ async function main() {
 
 	if (!query) {
 		console.error('\x1b[31mError: Missing query.\x1b[0m')
-		console.error('Usage: node search-workspace.js "query text" [--project "App: willni"] [-k 5]')
+		console.error('Usage: node search-workspace.js "query text" [--project "App: willni"] [-k 10] [-d 0.15]')
 		process.exit(1)
 	}
 
@@ -91,19 +132,38 @@ async function main() {
 
 	try {
 		// E5 models require 'query: ' prefix for similarity search vectors
-		const vec = await embedder.embed('query: ' + query)
+		const instructPrefix = 'Instruct: Retrieve relevant documentation, workflows, and architectural details to assist the software engineer.\nQuery: '
+	const vec = await embedder.embed(instructPrefix + query)
 		let allResults = []
 		
 		for (const [name, vdb] of databases.entries()) {
-			if (targetProject && name !== targetProject) continue
-			const res = vdb.search(vec, k)
+			if (projectPatterns.length > 0) {
+				const nameLower = name.toLowerCase()
+				if (!projectPatterns.some(p => nameLower.includes(p))) continue
+			}
+			// Fetch more to survive deduplication filtering
+			const fetchCount = Math.max(k * 10, 100)
+			const res = vdb.search(vec, fetchCount)
 			for (const r of res) {
-				allResults.push({ project: name, ...r })
+				if (r.distance <= maxDistance) {
+					allResults.push({ project: name, ...r })
+				}
 			}
 		}
 		
 		allResults.sort((a, b) => a.distance - b.distance)
-		const topResults = allResults.slice(0, k)
+		
+		// Deduplicate by file path (keep the best chunk for each file)
+		const seenFiles = new Set()
+		const topResults = []
+		for (const r of allResults) {
+			const uniqueKey = r.project + ':' + r.file
+			if (!seenFiles.has(uniqueKey)) {
+				seenFiles.add(uniqueKey)
+				topResults.push(r)
+				if (topResults.length === k) break
+			}
+		}
 		
 		if (topResults.length === 0) {
 			console.log('\x1b[33mNo relevant information found.\x1b[0m')
