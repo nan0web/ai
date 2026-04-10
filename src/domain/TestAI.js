@@ -27,7 +27,7 @@ export class TestAI extends AI {
 	 * @param {string[]} [responses] Pre-recorded text responses.
 	 */
 	constructor(responses = ['test response']) {
-		super()
+		super({})
 		this.#responses = responses
 	}
 

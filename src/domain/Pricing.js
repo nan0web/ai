@@ -1,69 +1,57 @@
+import { Model } from '@nan0web/types'
 import { Usage } from './Usage.js'
 
 /**
- * Represents pricing information for a model.
+ * Pricing — represents pricing information for a model.
+ * Inherits from Model to follow the universal Model-as-Schema pattern.
  */
-export class Pricing {
-	/** @type {number} - Completion cost per million tokens */
-	completion = 0
-	/** @type {number} - Image cost */
-	image = 0
-	/** @type {number} - Input cache read cost */
-	input_cache_read = 0
-	/** @type {number} - Input cache write cost */
-	input_cache_write = 0
-	/** @type {number} - Internal reasoning cost */
-	internal_reasoning = 0
-	/** @type {number} - Prompt cost per million tokens */
-	prompt = 0
-	/** @type {number} - Request cost */
-	request = 0
-	/** @type {number} - Web search cost */
-	web_search = 0
-	/** @type {number} - average speed T/s */
-	speed = 0
+export class Pricing extends Model {
+	static completion = { help: 'Completion cost per million tokens', default: 0 }
+	static image = { help: 'Image generation cost', default: 0 }
+	static input_cache_read = { help: 'Input cache read cost', default: 0 }
+	static input_cache_write = { help: 'Input cache write cost', default: 0 }
+	static internal_reasoning = { help: 'Internal reasoning cost', default: 0 }
+	static prompt = { help: 'Prompt cost per million tokens', default: 0 }
+	static request = { help: 'Per-request cost', default: 0 }
+	static web_search = { help: 'Web search cost', default: 0 }
+	static speed = { help: 'Average speed in tokens/second', default: 0 }
 
 	/**
-	 * @param {Partial<Pricing> & { input?: number, output?: number }} options
+	 * @param {Partial<Pricing> & { input?: number, output?: number } | Record<string, any>} [data] Initial state with optional and legacy aliases
+	 * @param {Partial<import('@nan0web/types').ModelOptions>} [options] Model options
 	 */
-	constructor(options = {}) {
-		const {
-			completion = this.completion,
-			image = this.image,
-			input_cache_read = this.input_cache_read,
-			input_cache_write = this.input_cache_write,
-			internal_reasoning = this.internal_reasoning,
-			prompt = this.prompt,
-			request = this.request,
-			web_search = this.web_search,
-			speed = this.speed,
-			input,
-			output,
-		} = options
-		this.completion = Number(output ?? completion)
-		this.image = Number(image)
-		this.input_cache_read = Number(input_cache_read)
-		this.input_cache_write = Number(input_cache_write)
-		this.internal_reasoning = Number(internal_reasoning)
-		this.prompt = Number(input ?? prompt)
-		this.request = Number(request)
-		this.web_search = Number(web_search)
-		this.speed = Number(speed)
+	constructor(data = {}, options = {}) {
+		// Handle legacy input/output aliases
+		// @ts-ignore
+		const { input, output, ...rest } = data
+		super(
+			{
+				...rest,
+				prompt: input ?? data.prompt ?? Pricing.prompt.default,
+				completion: output ?? data.completion ?? Pricing.completion.default,
+			},
+			options,
+		)
+
+		/** @type {number} Completion cost / 1M tokens */ this.completion = Number(this.completion)
+		/** @type {number} Cost per image generated */ this.image = Number(this.image)
+		/** @type {number} Cache reading cost */ this.input_cache_read = Number(this.input_cache_read)
+		/** @type {number} Cache writing cost */ this.input_cache_write = Number(this.input_cache_write)
+		/** @type {number} LLM thinking cost */ this.internal_reasoning = Number(
+			this.internal_reasoning,
+		)
+		/** @type {number} Prompt cost / 1M tokens */ this.prompt = Number(this.prompt)
+		/** @type {number} Fixed price per API call */ this.request = Number(this.request)
+		/** @type {number} Tool-call search cost */ this.web_search = Number(this.web_search)
+		/** @type {number} Avg speed in tokens/sec */ this.speed = Number(this.speed)
 	}
 
 	/**
 	 * Returns the Batch discount in %.
-	 * @returns {[inputDicount: number, outputDiscount: number]}
+	 * @returns {[inputDiscount: number, outputDiscount: number]}
 	 */
 	getBatchDiscount() {
-		// @todo implement for those where it works, it is not working with openrouter,
-		// but should work with openai.
 		return [0, 0]
-		if (!this.input_cache_read && this.input_cache_write) return [0, 0]
-		return [
-			Math.round((1 - this.input_cache_read / this.prompt) * 100),
-			Math.round((1 - this.input_cache_write / this.completion) * 100),
-		]
 	}
 
 	/**

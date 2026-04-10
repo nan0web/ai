@@ -20,7 +20,15 @@ export class ModelProvider {
      * @throws {ModelError} If API key is missing, with provider-specific help.
      */
     static validateApiKey(provider: string): void;
-    constructor(input?: {});
+    /**
+     * @param {Object} [input] Initial provider settings
+     * @param {any} [input.fs] Optional DB facade for cache persistence
+     * @param {CacheConfig} [input.cache] Optional custom cache config
+     */
+    constructor(input?: {
+        fs?: any;
+        cache?: CacheConfig | undefined;
+    });
     get cachePath(): string;
     get cacheConfig(): CacheConfig;
     /**
@@ -113,8 +121,10 @@ export type HuggingFaceProviderInfo = {
  * @property {boolean} is_model_author
  */
 declare class CacheConfig {
-    /** @param {Partial<CacheConfig>} [input] */
-    constructor(input?: Partial<CacheConfig>);
+    /**
+     * @param {Partial<CacheConfig> | Record<string, any>} [input] Initial cache settings
+     */
+    constructor(input?: Partial<CacheConfig> | Record<string, any>);
     /** @type {number} Cache duration – 1 hour (in milliseconds) */
     ttl: number;
     file: string;

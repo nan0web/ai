@@ -3,150 +3,22 @@ import { ModelProvider } from './ModelProvider.js'
 import { ModelInfo } from './ModelInfo.js'
 import { Usage } from './Usage.js'
 import { ModelError } from '@nan0web/types'
+import { AiStrategy } from './AiStrategy.js'
 
-/** @typedef {"free" | "cheap" | "expensive"} AiStrategyFinance - mighe be available from the ModelInfo */
-/** @typedef {"low" | "mid" | "high"} AiStrategyVolume - might be extracted from hugging_face_id */
-/** @typedef {"slow" | "fast"} AiStrategySpeed - might be calculated by stats */
-/** @typedef {"simple" | "smart" | "expert"} AiStrategyLevel - might be calculated by stats */
+/** @typedef {"free" | "cheap" | "expensive"} AiStrategyFinance */
+/** @typedef {"low" | "mid" | "high"} AiStrategyVolume */
+/** @typedef {"slow" | "fast"} AiStrategySpeed */
+/** @typedef {"simple" | "smart" | "expert"} AiStrategyLevel */
 
 /**
  * @typedef {Object} StreamOptions callbacks and abort signal
  * @property {AbortSignal} [abortSignal] aborts the request when signaled
- * @property {import('ai').StreamTextOnChunkCallback<import('ai').ToolSet>} [onChunk] called for each raw chunk
- * @property {import('ai').StreamTextOnStepFinishCallback<import('ai').ToolSet>} [onStepFinish] called after a logical step finishes (see description above)
- * @property {import('ai').StreamTextOnErrorCallback} [onError] called on stream error
- * @property {()=>void} [onFinish] called when the stream ends successfully
- * @property {()=>void} [onAbort] called when the stream is aborted
+ * @property {import('ai').StreamTextOnChunkCallback<import('ai').ToolSet>} [onChunk]
+ * @property {import('ai').StreamTextOnStepFinishCallback<import('ai').ToolSet>} [onStepFinish]
+ * @property {import('ai').StreamTextOnErrorCallback} [onError]
+ * @property {()=>void} [onFinish]
+ * @property {()=>void} [onAbort]
  */
-
-class AiStrategy {
-	static finance = {
-		help: `A finance limit that is calculated by prompt, completion cost per token.
-  - free - for models with prompt and completion prices = 0
-  - cheap - for models with prompt and completion prices below medium of all available
-  - expensive - for models with prompt and completion prices equal and above the medium of all available
-`,
-		/** @type {AiStrategyFinance[]} */
-		enum: ['free', 'cheap', 'expensive'],
-		/** @type {AiStrategyFinance} */
-		default: 'free',
-	}
-	/**
-	 * A finance limit that is calculated by prompt, completion cost per token.
-	 * - `free` - for models with prompt and completion prices = 0
-	 * - `cheap` - for models with prompt and completion prices below medium of all available
-	 * - `expensive` - for models with prompt and completion prices equal and above the medium of all available
-	 * @type {"free" | "cheap" | "expensive"}
-	 */
-	finance = AiStrategy.finance.default
-	static speed = {
-		help: `The response speed.
-  - slow - for models with the response speed above the medium of all available
-  - fast - for models with the response speed below the medium of all available`,
-		/** @type {AiStrategySpeed[]} */
-		enum: ['slow', 'fast'],
-		/** @type {AiStrategySpeed} */
-		default: 'fast',
-	}
-	/**
-	 * The response speed.
-	 * - `slow` - for models with the response speed above the medium of all available
-	 * - `fast` - for models with the response speed below the medium of all available
-	 * @type {AiStrategySpeed}
-	 */
-	speed = AiStrategy.speed.default
-	static volume = {
-		help: `The total parameters amount of the model divided into 3 medium ranges to select from: A, B, C.
-  - low - from 0 to billions of parameters depending on A range,
-  - mod - B range
-  - high - C range`,
-		/** @type {AiStrategyVolume[]} */
-		enum: ['low', 'mid', 'high'],
-		/** @type {AiStrategyVolume} */
-		default: 'mid',
-	}
-	/**
-	 * The total parameters amount of the model divided into 3 medium ranges to select from: A, B, C.
-	 * - `low` - from 0 to billions of parameters depending on A range,
-	 * - `mod` - B range
-	 * - `high` - C range
-	 * @type {AiStrategyVolume}
-	 */
-	volume = 'mid'
-	/**
-	 * Solving issues level measured with a statistics.
-	 * - `simple` - more than 20% fails
-	 * - `smart` - equal or less than 20% fails
-	 * - `expert` - equal or less than 2% fails
-	 */
-	static level = {
-		help: `Solving issues level measured with a statistics.
-  - simple - more than 20% fails
-  - smart - equal or less than 20% fails
-  - expert - equal or less than 2% fails`,
-		/** @type {AiStrategyLevel[]} */
-		enum: ['simple', 'smart', 'expert'],
-		/** @type {AiStrategyLevel} */
-		default: 'smart',
-	}
-	/** @type {AiStrategyLevel} */
-	level = 'smart'
-	static budget = {
-		help: 'A budget for the current chat',
-		default: 0,
-	}
-	/** @type {number | string} A budget for the current chat */
-	budget = AiStrategy.budget.default
-
-	static rateLimitDelayMs = {
-		help: 'Delay in milliseconds before retrying after a rate limit error',
-		default: 20000,
-	}
-	/** @type {number} */
-	rateLimitDelayMs = AiStrategy.rateLimitDelayMs.default
-
-	static rateLimitRetries = {
-		help: 'Number of retries when hitting rate limits (429)',
-		default: 1,
-	}
-	/** @type {number} */
-	rateLimitRetries = AiStrategy.rateLimitRetries.default
-
-	constructor(initial = {}) {
-		Object.assign(this, initial)
-	}
-
-	/**
-	 * @param {ModelInfo} model
-	 * @param {number} tokens
-	 * @param {number} [safeAnswerTokens=1_000]
-	 * @returns {boolean}
-	 */
-	shouldChangeModel(model, tokens, safeAnswerTokens = 1e3) {
-		if (!model) return true
-		if (model.context_length < tokens + safeAnswerTokens) return true
-		if (model.per_request_limit > 0 && model.per_request_limit < tokens) return true
-		if (model.maximum_output > 0 && model.maximum_output < safeAnswerTokens) return true
-		if (model.pricing.prompt < 0 || model.pricing.completion < 0) return true
-		// Volume та Finance фільтрація — тепер через computeModelScore() (Multiplier = 0)
-		return false
-	}
-	/**
-	 * @param {Map<string, ModelInfo>} models
-	 * @param {number} tokens
-	 * @param {number} [safeAnswerTokens=1_000]
-	 * @returns {ModelInfo | undefined}
-	 */
-	findModel(models, tokens, safeAnswerTokens = 1e3) {
-		const arr = Array.from(models.values()).filter(
-			(info) => !this.shouldChangeModel(info, tokens, safeAnswerTokens),
-		)
-		if (!arr.length) return
-		arr.sort((a, b) => a.pricing.completion - b.pricing.completion)
-
-		return arr[0]
-	}
-}
 
 /**
  * Wrapper for AI providers.
@@ -160,7 +32,7 @@ class AiStrategy {
 export class AI {
 	static Strategy = AiStrategy
 
-	static ui = {
+	static UI = {
 		errorModelNotFound: 'No such model found in {strategy}',
 	}
 
@@ -178,16 +50,16 @@ export class AI {
 
 	/**
 	 * @param {Object} input
-	 * @param {readonly[string, ModelInfo] | readonly [string, ModelInfo] | Map<string, ModelInfo>} [input.models=[]]
-	 * @param {ModelInfo} [input.selectedModel]
-	 * @param {AiStrategy} [input.strategy]
+	 * @param {readonly[string, ModelInfo] | readonly [string, ModelInfo] | Map<string, ModelInfo>} [input.models=[]] List of available models
+	 * @param {ModelInfo} [input.selectedModel] Currently selected model
+	 * @param {AiStrategy} [input.strategy] Selection and fallback strategy
 	 */
 	constructor(input = {}) {
 		const { models = [], selectedModel = this.selectedModel, strategy = new AI.Strategy() } = input
 		// @ts-ignore could not solve the type error even when param copied from the original function
 		this.setModels(models)
-		this.selectedModel = selectedModel
-		this.strategy = strategy
+		/** @type {ModelInfo?} Selected model */ this.selectedModel = selectedModel
+		/** @type {AiStrategy} Active strategy */ this.strategy = strategy
 	}
 
 	/**
@@ -772,7 +644,7 @@ export class AI {
 		const found = this.strategy.findModel(this.#models, tokens, safeAnswerTokens)
 		if (!found) {
 			throw new ModelError({
-				model: AI.ui.errorModelNotFound,
+				model: AI.UI.errorModelNotFound,
 				$strategy: this.strategy.constructor.name,
 			})
 		}

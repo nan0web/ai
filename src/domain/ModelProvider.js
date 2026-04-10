@@ -48,11 +48,13 @@ class CacheConfig {
 	/** @type {number} Cache duration – 1 hour (in milliseconds) */
 	ttl = 60 * 60 * 1e3
 	file = 'chat/cache/{provider}.jsonl'
-	/** @param {Partial<CacheConfig>} [input] */
+	/**
+	 * @param {Partial<CacheConfig> | Record<string, any>} [input] Initial cache settings
+	 */
 	constructor(input = {}) {
 		const { ttl = this.ttl, file = this.file } = input
-		this.ttl = Number(ttl)
-		this.file = String(file)
+		/** @type {number} Cache lifetime in ms */ this.ttl = Number(ttl)
+		/** @type {string} Path template for cache files */ this.file = String(file)
 	}
 	/**
 	 * @param {string} provider
@@ -176,10 +178,15 @@ export class ModelProvider {
 		}
 	}
 
+	/**
+	 * @param {Object} [input] Initial provider settings
+	 * @param {any} [input.fs] Optional DB facade for cache persistence
+	 * @param {CacheConfig} [input.cache] Optional custom cache config
+	 */
 	constructor(input = {}) {
 		const { fs = null, cache = new CacheConfig() } = input
-		this.#fs = fs
-		this.#cache = cache
+		/** @type {any} Internal storage handle */ this.#fs = fs
+		/** @type {CacheConfig} Active cache configuration */ this.#cache = cache
 	}
 
 	get cachePath() {

@@ -1,80 +1,90 @@
-export class Limits {
-    static rpd: {
-        alias: string;
+/**
+ * Timing — tracks response timing at various stages.
+ */
+export class Timing extends Model {
+    static queued: {
+        help: string;
+        default: () => number;
     };
-    static rph: {
-        alias: string;
+    static started: {
+        help: string;
+        default: number;
     };
-    static rpm: {
-        alias: string;
+    static prompted: {
+        help: string;
+        default: number;
     };
-    static tpd: {
-        alias: string;
+    static understood: {
+        help: string;
+        default: number;
     };
-    static tph: {
-        alias: string;
+    static completed: {
+        help: string;
+        default: number;
     };
-    static tpm: {
-        alias: string;
-    };
-    /** @param {Partial<Limits>} [input] */
-    constructor(input?: Partial<Limits>);
-    /** @type {number | undefined} Remaining requests per day */
-    rpd: number | undefined;
-    /** @type {number | undefined} Remaining requests per hour */
-    rph: number | undefined;
-    /** @type {number | undefined} Remaining requests per minute */
-    rpm: number | undefined;
-    /** @type {number | undefined} Remaining tokens per day */
-    tpd: number | undefined;
-    /** @type {number | undefined} Remaining tokens per hour */
-    tph: number | undefined;
-    /** @type {number | undefined} Remaining tokens per minute */
-    tpm: number | undefined;
-    /** @returns {boolean} */
-    get empty(): boolean;
-}
-export class Timing {
-    /** @param {Partial<Timing>} [input] */
-    constructor(input?: Partial<Timing>);
-    /** @type {number} The time in milliseconds when queued */
-    queued: number;
-    /** @type {number} The time in milliseconds when reading is started in the queue */
-    started: number;
-    /** @type {number} The time in milliseconds when first chunk returned */
-    prompted: number;
-    /** @type {number} The time in milliseconds when reasoning is complete */
-    understood: number;
-    /** @type {number} The time in milliseconds when response is complete */
-    completed: number;
-    /** @returns {number} The time in milliseconds spent on completion */
+    /**
+     * @param {Partial<Timing> | Record<string, any>} [data] Initial timestamps
+     * @param {Partial<import('@nan0web/types').ModelOptions>} [options] Model options
+     */
+    constructor(data?: Partial<Timing> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions>);
+    /** @type {number} Request creation UTC */ queued: number;
+    /** @type {number} API fetch call UTC */ started: number;
+    /** @type {number} First chunk received UTC */ prompted: number;
+    /** @type {number} Logic/Reasoning done UTC */ understood: number;
+    /** @type {number} Full response received UTC */ completed: number;
     get queueTime(): number;
-    /** @returns {number} The time in milliseconds spent on prompt reading */
     get promptTime(): number;
-    /** @returns {number} The time in milliseconds spent on reasoning */
     get understoodTime(): number;
-    /** @returns {number} The time in milliseconds spent on completion */
     get completionTime(): number;
-    /** @returns {number} The time in milliseconds spent on completion and queue */
     get totalTime(): number;
-    /** @returns {string} */
-    toString(): string;
 }
-export class Usage {
-    /** @param {Partial<Usage>} [input] */
-    constructor(input?: Partial<Usage>);
-    /** @type {number} */
-    inputTokens: number;
-    /** @type {number} */
-    reasoningTokens: number;
-    /** @type {number} */
-    outputTokens: number;
-    /** @type {number} */
-    cachedInputTokens: number;
-    /** @type {Partial<Limits>} */
-    limits: Partial<Limits>;
-    /** @type {Timing} */
-    timing: Timing;
+/**
+ * Usage — represents token usage and timing for an AI request.
+ */
+export class Usage extends Model {
+    static inputTokens: {
+        help: string;
+        default: number;
+    };
+    static reasoningTokens: {
+        help: string;
+        default: number;
+    };
+    static outputTokens: {
+        help: string;
+        default: number;
+    };
+    static cachedInputTokens: {
+        help: string;
+        default: number;
+    };
+    static limits: {
+        help: string;
+        default: {};
+    };
+    static timing: {
+        help: string;
+        default: {};
+    };
+    /**
+     * @param {Partial<Usage> | Record<string, any>} [data] Initial token counts
+     * @param {Partial<import('@nan0web/types').ModelOptions>} [options] Model options
+     */
+    constructor(data?: Partial<Usage> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions>);
+    /** @type {number} Prompt token count */ inputTokens: number;
+    /** @type {number} Internal thought tokens */ reasoningTokens: number;
+    /** @type {number} Completion token count */ outputTokens: number;
+    /** @type {number} Cached tokens used */ cachedInputTokens: number;
+    /** @type {Limits} Current rate limit state */ limits: Limits;
+    /** @type {Timing} Timing benchmarks */ timing: Timing;
+    /**
+     * No-op setter to allow Object.assign in Model.js to safely skip or
+     * overwrite this derived property during instantiation.
+     * @param {any} _v
+     */
+    set totalTokens(_v: any);
     /** @returns {number} */
     get totalTokens(): number;
 }
+import { Model } from '@nan0web/types';
+import { Limits } from './Limits.js';

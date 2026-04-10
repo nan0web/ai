@@ -1,0 +1,11 @@
+---
+metadata:
+  description: ""
+  tags: []
+  status: planned
+  locale: uk
+sections:
+stats:
+  totalTasks: 0
+  completedTasks: 0
+  progress: 0

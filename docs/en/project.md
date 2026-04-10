@@ -33,6 +33,9 @@ tags: [ai, core, node, llm]
    - For now, the package operates with pure JS abstractions without UI annotations (`@type`), as it is a fundamental kernel for other packages in the ecosystem.
 3. **Data Sources:**
    - No dedicated databases. The data consists of provider configurations and environment variables. Providers are registered on the fly (`ModelProvider`).
+4. **Vector Indexing (Sovereign Cache):**
+   - Indexing leverages `VectorDB` and chunk-level caching (`MarkdownIndexer`). Checksums are stored for each individual chunk.
+   - This prevents wasteful LLM embedding requests by re-indexing only the modified blocks.
 
 ---
 

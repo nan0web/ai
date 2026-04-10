@@ -117,76 +117,70 @@ How to use TestAI for testing?
 import { TestAI } from '@nan0web/ai/test'
 const ai = new TestAI()
 ```
+## Agent Orchestration (v1.4.0)
+
+High-level task orchestration via specialized agents.
+
+### AgentOrchestrator
+
+How to use AgentOrchestrator?
+```js
+import { AgentOrchestrator } from '@nan0web/ai'
+const orch = new AgentOrchestrator({
+	intent: { task: 'sys:build', context: { dir: '.' } },
+})
+```
+### CnaiRefactorAgent
+
+Specialized agent for code refactoring with boundary-aware communication.
+
+How to use CnaiRefactorAgent?
+```js
+import { CnaiRefactorAgent } from '@nan0web/ai'
+const agent = new CnaiRefactorAgent({
+	files: { 'index.js': 'console.log("hello")' },
+	instructions: 'Change output to "world"',
+})
+```
+### BoundaryParser
+
+Utility for parsing OLMUI boundary markers from multiline responses.
+
+How to parse boundaries?
+```js
+import { parseBoundaries } from '@nan0web/ai'
+const raw = '---boundary:src/app.js---\nconsole.log(1)\n---boundary---'
+const files = parseBoundaries(raw)
+```
+## MCP Server
+
+Expose semantic search tools as a Model Context Protocol (MCP) server.
+
+How to install MCP server?
+```js
+nan0ai mcp install
+```
 ## Architecture
 
 ```
 @nan0web/ai
-├── AI.js              — Provider abstraction (streamText, generateText)
-├── ModelInfo.js       — Model metadata & capabilities
-├── ModelProvider.js   — Remote model discovery
-├── AiStrategy         — Smart model selection (finance/speed/volume/level)
-├── TestAI.js          — Deterministic testing mock
-├── Usage.js           — Token tracking & cost calculation
-└── Pricing.js         — Per-token pricing calculations
+├── domain/             — Core business logic
+│   ├── AI.js           — Unified provider kernel
+│   ├── AiStrategy.js   — Scoring & fallback logic
+│   ├── VectorDB.js     — HNSWLib persistence
+│   └── Embedder.js     — Text-to-Vector transformations
+└── agents/             — High-level task delegates
+    ├── AgentOrchestrator.js — Dynamic task delegation
+    ├── CnaiRefactorAgent.js — Refactoring intelligence
+    └── BoundaryParser.js    — Protocol parsing
 ```
 
 How to verify the package engine requirement?
 
-## Documentation
+## Contributing
 
-- [PLAN.md](./PLAN.md) — Detailed architecture and API plan
-
-## RAG Configuration & Tools
-
-The package provides CLI utilities and an MCP server for indexing markdown files into multi-level HNSW vector indices using E5-Instruct embeddings.
-
-### 1. Indexing (`index-workspace.js`)
-
-Indexes all documentation packages across the monorepo (ignoring dot-files like `.agent`, `.datasets`).
-
-```bash
-# Index everything
-npm run index
-
-# Re-index a specific project uniquely (e.g. only 0HCnAI.framework)
-node bin/index-workspace.js -p 0HCnAI
-```
-
-Run with `--help` for more options:
-```bash
-node bin/index-workspace.js --help
-```
-
-### 2. Searching (`search-workspace.js`)
-
-Manually query your vector indices with semantic deduplication (prevents one long page from spamming the top 5 results):
-
-```bash
-pnpm query "How to generate galleries?" -p 0HCnAI -k 10 -d 0.15
-```
-
-- `-p <name>`: Target specific project (e.g. `0HCnAI`)
-- `-k <number>`: Number of unique files to return
-- `-d <distance>`: Semantic trash filter (distance > 0.15 is considered garbage for E5)
-- `--help`: View all options
-
-### 3. MCP Server (`mcp-server.js`)
-
-The AI package exposes a native Model Context Protocol Server so your agents can natively fetch context.
-
-Add to your `mcp_config.json`:
-```json
-{
-  "mcpServers": {
-    "nan0web-knowledge": {
-      "command": "node",
-      "args": ["/absolute/path/to/packages/ai/bin/mcp-server.js"]
-    }
-  }
-}
-```
-*Note: Ensure `EMBEDDER_URL` is set to your local model instance (e.g. LM Studio).*
+How to participate? – [see CONTRIBUTING.md]($pkgURL/blob/main/CONTRIBUTING.md)
 
 ## License
 
-How to check the license?
+ISC LICENSE – [see full text]($pkgURL/blob/main/LICENSE)

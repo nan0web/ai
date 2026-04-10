@@ -1,8 +1,39 @@
-export class Embedder {
-	constructor(config = {}) {
-		this.baseURL = (config.baseURL || 'http://localhost:1234/v1').replace(/\/$/, '')
-		this.model = config.model || 'text-embedding-multilingual-e5-large-instruct'
-		this._fetch = config.fetch || globalThis.fetch.bind(globalThis)
+import { Model, ModelError } from '@nan0web/types'
+
+/**
+ * Embedder — computes text embeddings via an OpenAI-compatible endpoint.
+ * Inherits from Model to follow Model-as-Schema v2.
+ */
+export class Embedder extends Model {
+	static UI = {
+		errorFetchFailed: 'Embedder fetch failed: {status} {statusText}',
+	}
+
+	static baseURL = {
+		help: 'Base URL of the embedding API (without trailing slash)',
+		default: 'http://localhost:1234/v1',
+	}
+
+	static model = {
+		help: 'Embedding model identifier',
+		default: 'text-embedding-multilingual-e5-large-instruct',
+	}
+
+	/**
+	 * @param {Partial<Embedder> & { fetch?: typeof globalThis.fetch } | Record<string, any>} [data] Initial state with optional fetch override
+	 * @param {Partial<import('@nan0web/types').ModelOptions>} [options] Model options
+	 */
+	constructor(data = {}, options = {}) {
+		// @ts-ignore
+		const { fetch: fetchFn, ...rest } = data
+		super(rest, options)
+		/** @type {string} API root without slash */ this.baseURL = String(this.baseURL).replace(
+			/\/$/,
+			'',
+		)
+		/** @type {string} Target embedding model ID */ this.model
+		/** @type {typeof globalThis.fetch} Fetch platform override */
+		this._fetch = fetchFn || globalThis.fetch.bind(globalThis)
 	}
 
 	/**
@@ -33,7 +64,12 @@ export class Embedder {
 		})
 		if (!response.ok) {
 			const errText = await response.text().catch(() => '')
-			throw new Error(`Embedder fetch failed: ${response.status} ${response.statusText} ${errText}`)
+			throw new ModelError({
+				api: Embedder.UI.errorFetchFailed,
+				$status: response.status,
+				$statusText: response.statusText,
+				$details: errText,
+			})
 		}
 		const data = await response.json()
 		// OpenAI compatible format expects { data: [ { index, embedding } ] }

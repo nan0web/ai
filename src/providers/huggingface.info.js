@@ -34,7 +34,7 @@ function getModels() {
 /**
  * @typedef {Object} HuggingFaceProviderInfo
  * @property {string} provider - Provider identifier (e.g., "novita", "zai-org")
- * @property {import("../domain/ModelInfo.js").ProviderStatus} status - Provider status (e.g., "live", "staging")
+ * @property {"live" | "staging"} status - Provider status (e.g., "live", "staging")
  * @property {number} [context_length] - Maximum context length supported by the provider
  * @property {HuggingFacePricing} [pricing] - Pricing details, if available
  * @property {boolean} [supports_tools] - Whether the provider supports tool usage

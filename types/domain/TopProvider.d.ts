@@ -1,15 +1,26 @@
 /**
- * Represents top provider information for a model.
+ * TopProvider — represents provider-specific configuration and constraints.
  */
-export class TopProvider {
+export class TopProvider extends Model {
+    static context_length: {
+        help: string;
+        default: number;
+    };
+    static is_moderated: {
+        help: string;
+        default: boolean;
+    };
+    static max_completion_tokens: {
+        help: string;
+        default: number;
+    };
     /**
-     * @param {Partial<TopProvider>} input
+     * @param {Partial<TopProvider>} [data]
+     * @param {Partial<import('@nan0web/types').ModelOptions>} [options]
      */
-    constructor(input?: Partial<TopProvider>);
-    /** @type {number} - Context length */
+    constructor(data?: Partial<TopProvider>, options?: Partial<import("@nan0web/types").ModelOptions>);
     context_length: number;
-    /** @type {boolean} - Whether the model is moderated */
     is_moderated: boolean;
-    /** @type {number} - Max completion tokens */
     max_completion_tokens: number;
 }
+import { Model } from '@nan0web/types';

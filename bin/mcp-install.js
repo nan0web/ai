@@ -15,7 +15,12 @@ const EMBEDDER_URL = process.env.EMBEDDER_URL || 'http://localhost:1234/v1'
 
 const IDE_CONFIGS = [
 	{
-		name: 'Antigravity / Claude Desktop',
+		name: 'Gemini CLI (Antigravity)',
+		path: path.join(os.homedir(), '.gemini/settings.json'),
+		platform: 'all'
+	},
+	{
+		name: 'Claude Desktop',
 		path: path.join(os.homedir(), 'Library/Application Support/Claude/claude_desktop_config.json'),
 		platform: 'darwin'
 	},

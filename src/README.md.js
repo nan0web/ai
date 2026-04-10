@@ -7,6 +7,10 @@ import { TestAI } from './domain/TestAI.js'
 import { ModelInfo } from './domain/ModelInfo.js'
 import { Usage } from './domain/Usage.js'
 
+import { AgentOrchestrator } from './agents/AgentOrchestrator.js'
+import { CnaiRefactorAgent } from './agents/CnaiRefactorAgent.js'
+import { parseBoundaries } from './agents/BoundaryParser.js'
+
 const fs = new FS()
 let pkg
 
@@ -177,17 +181,74 @@ function testRender() {
 
 	/**
 	 * @docs
+	 * ## Agent Orchestration (v1.4.0)
+	 *
+	 * High-level task orchestration via specialized agents.
+	 *
+	 * ### AgentOrchestrator
+	 */
+	it('How to use AgentOrchestrator?', async () => {
+		//import { AgentOrchestrator } from '@nan0web/ai'
+		const orch = new AgentOrchestrator({
+			intent: { task: 'sys:build', context: { dir: '.' } },
+		})
+		assert.ok(typeof orch.run === 'function')
+	})
+
+	/**
+	 * @docs
+	 * ### CnaiRefactorAgent
+	 *
+	 * Specialized agent for code refactoring with boundary-aware communication.
+	 */
+	it('How to use CnaiRefactorAgent?', () => {
+		//import { CnaiRefactorAgent } from '@nan0web/ai'
+		const agent = new CnaiRefactorAgent({
+			files: { 'index.js': 'console.log("hello")' },
+			instructions: 'Change output to "world"',
+		})
+		assert.equal(agent.instructions, 'Change output to "world"')
+	})
+
+	/**
+	 * @docs
+	 * ### BoundaryParser
+	 *
+	 * Utility for parsing OLMUI boundary markers from multiline responses.
+	 */
+	it('How to parse boundaries?', () => {
+		//import { parseBoundaries } from '@nan0web/ai'
+		const raw = '---boundary:src/app.js---\nconsole.log(1)\n---boundary---'
+		const files = parseBoundaries(raw)
+		assert.equal(files['src/app.js'], 'console.log(1)')
+	})
+
+	/**
+	 * @docs
+	 * ## MCP Server
+	 *
+	 * Expose semantic search tools as a Model Context Protocol (MCP) server.
+	 */
+	it('How to install MCP server?', () => {
+		//nan0ai mcp install
+		assert.ok(pkg.bin.nan0ai)
+	})
+
+	/**
+	 * @docs
 	 * ## Architecture
 	 *
 	 * ```
 	 * @nan0web/ai
-	 * ├── AI.js              — Provider abstraction (streamText, generateText)
-	 * ├── ModelInfo.js       — Model metadata & capabilities
-	 * ├── ModelProvider.js   — Remote model discovery
-	 * ├── AiStrategy         — Smart model selection (finance/speed/volume/level)
-	 * ├── TestAI.js          — Deterministic testing mock
-	 * ├── Usage.js           — Token tracking & cost calculation
-	 * └── Pricing.js         — Per-token pricing calculations
+	 * ├── domain/             — Core business logic
+	 * │   ├── AI.js           — Unified provider kernel
+	 * │   ├── AiStrategy.js   — Scoring & fallback logic
+	 * │   ├── VectorDB.js     — HNSWLib persistence
+	 * │   └── Embedder.js     — Text-to-Vector transformations
+	 * └── agents/             — High-level task delegates
+	 *     ├── AgentOrchestrator.js — Dynamic task delegation
+	 *     ├── CnaiRefactorAgent.js — Refactoring intelligence
+	 *     └── BoundaryParser.js    — Protocol parsing
 	 * ```
 	 */
 	it('How to verify the package engine requirement?', () => {
@@ -196,14 +257,23 @@ function testRender() {
 
 	/**
 	 * @docs
-	 * ## Documentation
-	 *
-	 * - [PLAN.md](./PLAN.md) — Detailed architecture and API plan
-	 *
+	 * ## Contributing
+	 */
+	it('How to participate? – [see CONTRIBUTING.md]($pkgURL/blob/main/CONTRIBUTING.md)', async () => {
+		/** @docs */
+		let text = await fs.loadDocument('CONTRIBUTING.md')
+		if (text && typeof text === 'object' && text.content) text = text.content
+		assert.ok(String(text).includes('# Contributing'))
+	})
+
+	/**
+	 * @docs
 	 * ## License
 	 */
-	it('How to check the license?', () => {
-		assert.equal(pkg.license, 'ISC')
+	it('ISC LICENSE – [see full text]($pkgURL/blob/main/LICENSE)', async () => {
+		/** @docs */
+		const text = await fs.loadDocument('LICENSE')
+		assert.ok(String(text).includes('ISC'))
 	})
 }
 
