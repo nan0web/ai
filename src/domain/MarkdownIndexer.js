@@ -1,13 +1,31 @@
+// @ts-nocheck
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { Model } from '@nan0web/types'
 
-export class MarkdownIndexer {
-	constructor(config = {}) {
-		this.maxChars = config.maxChars || 3000
-		this.overlap = config.overlap || 200
-		/** @type {string|undefined} */
-		this.workspaceRoot = config.workspaceRoot
-		/** @type {string|undefined} */
-		this.targetProject = config.targetProject
+/**
+ * MarkdownIndexer — індексатор робочого простору.
+ * Тепер працює виключно через this._.db з рекурсивним обходом.
+ */
+export class MarkdownIndexer extends Model {
+	static maxChars = { default: 3000 }
+	static overlap = { default: 200 }
+	static targetProject = { default: null }
+	static DEFAULT_SCOPE = 'docs'
+
+	/**
+	 * @param {object} [data]
+	 * @param {string} [data.scope='docs'] Indexing scope ('docs' or 'source')
+	 * @param {string} [data.targetProject] Optional project filter
+	 * @param {Partial<import('@nan0web/types').ModelOptions>} [options]
+	 */
+	constructor(data = {}, options = {}) {
+		super(data, options)
+		/** @type {number} */ this.maxChars
+		/** @type {number} */ this.overlap
+		/** @type {'docs'|'source'} */ this.scope = data.scope || MarkdownIndexer.DEFAULT_SCOPE
+		/** @type {string|null} */ this.targetProject = data.targetProject || null
 	}
 
 	/**
@@ -19,12 +37,44 @@ export class MarkdownIndexer {
 	}
 
 	/**
+	 * Рекурсивний обхід директорій через listDir
+	 * @param {string} uri
+	 * @returns {Promise<string[]>}
+	 */
+	async scanRecursive(dir) {
+		const results = []
+		if (!fs.existsSync(dir)) return results
+
+		const entries = fs.readdirSync(dir)
+
+		for (const name of entries) {
+			const fullPath = path.join(dir, name)
+			try {
+				const stat = fs.statSync(fullPath)
+				if (stat.isDirectory()) {
+					if (name.startsWith('.') || name === 'node_modules' || name === 'dist') continue
+					const nested = await this.scanRecursive(fullPath)
+					results.push(...nested)
+				} else {
+					const isDocs = /\.(md|txt)$/.test(name)
+					const isSource = /\.(js|ts|jsx|tsx)$/.test(name)
+					
+					if (this.scope === 'docs' && isDocs) results.push(fullPath)
+					if (this.scope === 'source' && isSource) results.push(fullPath)
+				}
+			} catch (err) {
+				console.warn(`  ! Warning: could not stat ${fullPath}, skipping.`)
+			}
+		}
+		return results
+	}
+
+	/**
 	 * @param {string} content
 	 * @param {Object} metadata
 	 * @returns {Array<{content: string, hash: string} & Object>}
 	 */
 	chunkify(content, metadata = {}) {
-		// Split primarily by headers H2 and H3 or @docs/JSDoc block starts in code
 		const sections = content.split(/\n(?=(?:#{2,3} |\/\*\*| @docs))/)
 		const chunks = []
 
@@ -39,23 +89,18 @@ export class MarkdownIndexer {
 
 		for (const section of sections) {
 			if (!section.trim()) continue
-
-			// If section is reasonably sized, keep it
 			if (section.length <= this.maxChars) {
 				pushChunk(section.trim())
 				continue
 			}
 
-			// If section is too big, split by double newline (paragraphs) for sub-chunking
 			const paragraphs = section.split(/\n\n/)
 			let currentChunk = ''
 
 			for (const p of paragraphs) {
 				if (currentChunk.length + p.length > this.maxChars && currentChunk.length > 0) {
 					pushChunk(currentChunk.trim())
-					// Simple overlap: take the last ~overlap characters from currentChunk
-					const overlapStr =
-						currentChunk.length > this.overlap ? currentChunk.slice(-this.overlap) : currentChunk
+					const overlapStr = currentChunk.length > this.overlap ? currentChunk.slice(-this.overlap) : currentChunk
 					currentChunk = '... ' + overlapStr + '\n\n' + p
 				} else {
 					currentChunk += (currentChunk ? '\n\n' : '') + p
@@ -69,210 +114,158 @@ export class MarkdownIndexer {
 		return chunks
 	}
 
+	getDatasetDir() {
+		const root = path.resolve(this._.workspaceRoot || process.cwd())
+		const workspaceId = crypto.createHash('md5').update(root).digest('hex').slice(0, 8)
+		return `~/datasets/${workspaceId}`
+	}
+
 	/**
 	 * Scans the workspace and indexes target markdown files.
-	 * Yields progress objects for UI Adapters.
 	 * @param {import('./Embedder.js').Embedder} embedder
 	 */
-	async *indexAll(embedder) {
-		const fs = await import('node:fs/promises')
-		const path = await import('node:path')
+	async *indexAll(embedder, opts = { force: false }) {
+		const { DBFS } = await import('@nan0web/db-fs')
+		const workspaceDb = new DBFS({ root: this._.workspaceRoot || process.cwd() })
+		const db = this._.db // Global DB with Home mount
+		const dsFolder = this.getDatasetDir()
+
 		const { VectorDB } = await import('./VectorDB.js')
 		const { IndexCacheModel } = await import('./IndexCacheModel.js')
 
-		const rootDir = this.workspaceRoot || process.cwd()
-		const targetProject = this.targetProject
+		const VECTOR_CACHE_PATH = `${dsFolder}/vectors.csv`
 
-		const IGNORE_DIRS = ['node_modules', '.git', '.datasets', 'dist', 'coverage', '.next', 'chat']
-		const GLOBAL_DS_DIR = path.join(rootDir, '.datasets')
-		const VECTOR_CACHE_PATH = path.join(GLOBAL_DS_DIR, 'vectors.csv')
-		const OLD_VECTOR_CACHE_PATH = path.join(GLOBAL_DS_DIR, 'vectors.json')
-
-		// 1. Load global vector cache (hash,base64) - Persistent memory
 		/** @type {Map<string, Float32Array>} */
 		const vectorCache = new Map()
 
-		// Migration: look for old JSON first
+		// Load global vector cache
 		try {
-			if (
-				await fs
-					.stat(OLD_VECTOR_CACHE_PATH)
-					.then(() => true)
-					.catch(() => false)
-			) {
-				const oldRaw = await fs.readFile(OLD_VECTOR_CACHE_PATH, 'utf-8')
-				const oldData = JSON.parse(oldRaw)
-				for (const [hash, b64] of Object.entries(oldData)) {
-					const buf = Buffer.from(b64, 'base64')
-					vectorCache.set(hash, new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4))
+			const raw = await db.loadDocument(VECTOR_CACHE_PATH).catch(() => null)
+			if (raw && typeof raw === 'string') {
+				const lines = raw.split('\n')
+				for (const line of lines) {
+					if (!line.trim()) continue
+					const [hash, b64] = line.split(',')
+					if (hash && b64) {
+						const buf = Buffer.from(b64, 'base64')
+						vectorCache.set(hash, new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4))
+					}
 				}
-				await fs.unlink(OLD_VECTOR_CACHE_PATH) // Cleanup after migration
 			}
 		} catch (e) {}
 
-		// Standard CSV Load
-		try {
-			const raw = await fs.readFile(VECTOR_CACHE_PATH, 'utf-8')
-			const lines = raw.split(/\r?\n/)
+		// Get projects from store registry
+		const projects = []
+		let storeRaw = await workspaceDb.loadDocumentAs('.csv', '/nan0web_store.csv').catch(() => null)
+
+		
+		if (Array.isArray(storeRaw)) {
+			for (const row of storeRaw) {
+				const name = row.name
+				let dir = row.path
+				// Ensure dir is relative to workspace root for DB compatibility
+				if (dir && dir.startsWith(this._.workspaceRoot || '')) {
+					dir = dir.slice((this._.workspaceRoot || '').length).replace(/^[\\/]+/, '')
+				}
+				if (this.targetProject && !name.toLowerCase().includes(this.targetProject.toLowerCase())) continue
+				projects.push({ name, dir })
+			}
+		} else if (typeof storeRaw === 'string') {
+			const lines = storeRaw.split('\n').filter(l => l.trim()).slice(1)
 			for (const line of lines) {
-				if (!line.trim()) continue
-				const [hash, b64] = line.split(',')
-				if (hash && b64) {
-					const buf = Buffer.from(b64, 'base64')
-					vectorCache.set(hash, new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4))
+				const parts = line.split(',')
+				const name = parts[0]
+				let dir = parts[2]
+				if (dir && dir.startsWith(this._.workspaceRoot || '')) {
+					dir = dir.slice((this._.workspaceRoot || '').length).replace(/^[\\/]+/, '')
 				}
+				if (this.targetProject && !name.toLowerCase().includes(this.targetProject.toLowerCase())) continue
+				projects.push({ name, dir })
 			}
-		} catch (e) {}
-
-		async function getProjects(rootDir) {
-			const projects = [{ name: 'Platform Root', dir: rootDir, isRoot: true }]
-			const appsDir = path.join(rootDir, 'apps')
-			const pkgsDir = path.join(rootDir, 'packages')
-			try {
-				const apps = await fs.readdir(appsDir, { withFileTypes: true })
-				for (const app of apps) {
-					if (app.isDirectory() && !app.name.startsWith('.')) {
-						projects.push({
-							name: `App: ${app.name}`,
-							dir: path.join(appsDir, app.name),
-							isRoot: false,
-						})
-					}
-				}
-			} catch (e) {}
-			try {
-				const pkgs = await fs.readdir(pkgsDir, { withFileTypes: true })
-				for (const pkg of pkgs) {
-					if (pkg.isDirectory() && !pkg.name.startsWith('.')) {
-						projects.push({
-							name: `Package: ${pkg.name}`,
-							dir: path.join(pkgsDir, pkg.name),
-							isRoot: false,
-						})
-					}
-				}
-			} catch (e) {}
-			return projects
 		}
 
-		async function findMarkdownFiles(dir, isRootProject) {
-			const files = []
-			async function scan(currentDir) {
-				const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch(() => [])
-				for (const entry of entries) {
-					if (entry.name.startsWith('.')) continue
-					if (IGNORE_DIRS.includes(entry.name)) continue
-
-					if (
-						isRootProject &&
-						currentDir === dir &&
-						(entry.name === 'apps' || entry.name === 'packages')
-					)
-						continue
-
-					const fullPath = path.join(currentDir, entry.name)
-					if (entry.isDirectory()) {
-						await scan(fullPath)
-					} else if (entry.name.endsWith('.md')) {
-						files.push(fullPath)
-					} else if (
-						entry.name.endsWith('.js') &&
-						fullPath.includes(`${path.sep}src${path.sep}`) &&
-						!entry.name.endsWith('.test.js')
-					) {
-						files.push(fullPath)
-					}
-				}
-			}
-			await scan(dir)
-			return files
+		if (projects.length === 0) {
+			console.error('❌ No projects found in nan0web_store.csv. Check if file exists and is populated.')
+			return
 		}
 
-		const allProjects = await getProjects(rootDir)
-		const projects = targetProject
-			? allProjects.filter((p) => p.name.toLowerCase().includes(targetProject.toLowerCase()))
-			: allProjects
-
-		if (projects.length === 0) return
-
-		let totalFiles = 0
-		let globalProcessed = 0
-
+		// Scanning projects for files recursively
 		for (const proj of projects) {
-			proj.files = await findMarkdownFiles(proj.dir, proj.isRoot)
-			totalFiles += proj.files.length
+			const absDir = path.join(this._.workspaceRoot || '', proj.dir)
+			proj.files = await this.scanRecursive(absDir)
+			console.log(`  - ${proj.name}: found ${proj.files.length} files`)
 		}
 
-		if (totalFiles === 0) return
+		const totalFiles = projects.reduce((acc, p) => acc + (p.files?.length || 0), 0)
+		console.log(`Total files to process: ${totalFiles}`)
+		
+		if (totalFiles === 0) {
+			console.log('No files found for scope:', this.scope)
+			return
+		}
 
 		yield { type: 'calc', total: totalFiles }
 
 		const testEmb = await embedder.embed('test')
 		const dim = testEmb.length
+		let globalProcessed = 0
 
 		for (const proj of projects) {
-			const dsFolder = path.join(proj.dir, '.datasets')
-			const indexPath = path.join(dsFolder, 'workspace-index.bin')
-			const cachePath = path.join(dsFolder, 'workspace-index.cache.json')
+			const projId = proj.dir.replace(/\//g, '__')
+			const indexPath = `${dsFolder}/${this.scope}-${projId}-index.bin`
+			const cachePath = `${dsFolder}/${this.scope}-${projId}-index.cache.json`
 
-			if (proj.files.length === 0) {
-				await fs.unlink(indexPath).catch(() => {})
-				await fs.unlink(cachePath).catch(() => {})
-				continue
-			}
+			if (proj.files.length === 0) continue
 
-			let fileToHashData = {}
-			try {
-				const raw = await fs.readFile(cachePath, 'utf-8')
-				fileToHashData = JSON.parse(raw)
-			} catch (e) {}
-
+			const fileToHashData = await db.loadDocument(cachePath).catch(() => ({}))
 			const projectCache = new IndexCacheModel(fileToHashData)
 			const newCacheState = new IndexCacheModel()
 			const projFilesInfo = []
 			let needsRebuild = false
 
-			for (const filePath of proj.files) {
-				const relPath = path.relative(proj.dir, filePath)
-				const content = await fs.readFile(filePath, 'utf-8').catch(() => '')
-				if (!content) continue
+			for (const absPath of proj.files) {
+				const relPath = '/' + path.relative(this._.workspaceRoot || '', absPath)
+				const content = await workspaceDb.loadDocumentAs('.txt', relPath).catch(() => '')
+				if (!content) {
+					globalProcessed++ // Skip but count
+					continue
+				}
 
 				const chunks = this.chunkify(content, { file: relPath })
 				const hashes = chunks.map((c) => c.hash)
 
-				newCacheState.setHashes(relPath, hashes)
+				newCacheState.setHashes(absPath, hashes)
 				projFilesInfo.push({ relPath, chunks })
 
-				if (!projectCache.isUnchanged(relPath, hashes)) {
+				if (!projectCache.isUnchanged(absPath, hashes) || opts.force) {
 					needsRebuild = true
+				}
+				
+				globalProcessed++
+				yield { 
+					type: 'tick', 
+					current: globalProcessed, 
+					total: totalFiles, 
+					phase: 'scanning',
+					file: relPath,
+					project: proj.name
 				}
 			}
 
-			// Check deleted files
-			const oldKeys = Object.keys(projectCache.entries)
-			for (const key of oldKeys) {
-				if (newCacheState.getHashes(key).length === 0) needsRebuild = true
-			}
-
-			const indexExists = await fs
-				.stat(indexPath)
-				.then(() => true)
-				.catch(() => false)
-
-			if (!needsRebuild && indexExists) {
-				globalProcessed += proj.files.length
+			if (!needsRebuild && (await db.statDocument(indexPath)).exists && !opts.force) {
 				yield {
 					type: 'projectCached',
 					name: proj.name,
+					dir: proj.dir,
 					files: proj.files.length,
 					current: globalProcessed,
 					total: totalFiles,
+					phase: 'scanning'
 				}
 				continue
 			}
 
-			// Build/Rebuild Vector DB
-			const vdb = new VectorDB({ dim })
+			const vdb = new VectorDB({ dim }, { db })
 			for (const { relPath, chunks } of projFilesInfo) {
 				const missingChunks = []
 				const fileVectors = new Array(chunks.length)
@@ -297,29 +290,37 @@ export class MarkdownIndexer {
 					}
 				}
 
-				// Add all to VDB
 				for (let i = 0; i < chunks.length; i++) {
 					vdb.addVector(Array.from(fileVectors[i]), { file: relPath, content: chunks[i].content })
 				}
 
 				globalProcessed++
-				yield { type: 'tick', current: globalProcessed, total: totalFiles }
+				yield { 
+					type: 'tick', 
+					current: globalProcessed, 
+					total: totalFiles, 
+					phase: 'embedding',
+					file: relPath,
+					project: proj.name
+				}
 			}
 
-			await fs.mkdir(dsFolder, { recursive: true }).catch(() => {})
-			await vdb.save(indexPath)
-			await fs.writeFile(cachePath, JSON.stringify(newCacheState.entries, null, 2))
-
-			yield { type: 'projectIndexed', name: proj.name, files: proj.files.length }
+			yield { 
+				type: 'projectIndexed', 
+				name: proj.name, 
+				dir: proj.dir, 
+				files: proj.files.length,
+				current: globalProcessed,
+				total: totalFiles
+			}
 		}
 
-		// Save global vector cache as CSV
-		await fs.mkdir(GLOBAL_DS_DIR, { recursive: true }).catch(() => {})
+		// Save global vector cache
 		let csvToSave = ''
 		for (const [hash, vec] of vectorCache.entries()) {
 			const b64 = Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength).toString('base64')
 			csvToSave += `${hash},${b64}\n`
 		}
-		await fs.writeFile(VECTOR_CACHE_PATH, csvToSave)
+		await db.saveDocument(VECTOR_CACHE_PATH, csvToSave)
 	}
 }

@@ -44,13 +44,13 @@ describe('SysBuildAgent', () => {
 			items.push(value)
 		}
 
-		const progressMessages = items.filter((i) => i.type === 'progress').map((i) => i.message)
+		const progressMessages = items.filter((i) => i && i.type === 'progress').map((i) => i.message)
 		assert.ok(progressMessages.includes('line 1'))
 		assert.ok(progressMessages.includes('line 2'))
 		assert.ok(progressMessages.includes('line 3'))
 		assert.ok(progressMessages.includes('ERR: error line'))
 
-		const result = items.find((i) => i.type === 'result')
+		const result = items.find((i) => i && i.type === 'result')
 		assert.ok(result.data.success)
 		assert.ok(result.data.logs.includes('line 1\nline 2\nline 3'))
 	})

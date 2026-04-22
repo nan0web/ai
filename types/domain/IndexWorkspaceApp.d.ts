@@ -1,7 +1,8 @@
 /**
  * CLI Application Model for Workspace Indexing
  */
-export class IndexWorkspaceApp extends Model {
+export class IndexWorkspaceApp extends ModelAsApp {
+    static alias: string;
     static UI: {
         done: string;
     };
@@ -11,36 +12,26 @@ export class IndexWorkspaceApp extends Model {
         alias: string;
         default: null;
     };
+    static scope: {
+        help: string;
+        type: string;
+        alias: string;
+        options: string[];
+        default: string;
+    };
+    static force: {
+        help: string;
+        type: string;
+        alias: string;
+        default: boolean;
+    };
     /**
      * @param {Partial<IndexWorkspaceApp> | Record<string, any>} [data] Initial state
      * @param {Partial<import('@nan0web/types').ModelOptions> & Record<string, any>} [options] Model options
      */
     constructor(data?: Partial<IndexWorkspaceApp> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions> & Record<string, any>);
     /** @type {string|null} Specific project filter to re-index */ project: string | null;
-    run(): AsyncGenerator<{
-        type: string;
-        message: any;
-        current: number;
-        total: number;
-        label?: undefined;
-        $project?: undefined;
-    } | {
-        type: string;
-        label: string;
-        total: number | undefined;
-        current: number | undefined;
-        message: any;
-        $project?: undefined;
-    } | {
-        type: string;
-        message: any;
-        $project: string | undefined;
-        current?: undefined;
-        total?: undefined;
-        label?: undefined;
-    } | {
-        type: string;
-        message: any;
-    }, void, unknown>;
+    /** @type {"docs"|"source"} Indexing scope */ scope: "docs" | "source";
+    /** @type {boolean} Force re-indexing */ force: boolean;
 }
-import { Model } from '@nan0web/types';
+import { ModelAsApp } from '@nan0web/ui-cli';

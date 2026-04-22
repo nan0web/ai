@@ -1,13 +1,12 @@
-import { Model } from '@nan0web/types'
-import { t } from '@nan0web/i18n'
-import { AiAppModel } from './AiAppModel.js'
+import { ModelAsApp } from '@nan0web/ui-cli'
 
 /**
  * CLI Application Model for Workspace Indexing
  */
-export class IndexWorkspaceApp extends Model {
+export class IndexWorkspaceApp extends ModelAsApp {
+	static alias = 'index'
 	static UI = {
-		done: '🎉 All multi-level indices updated successfully!',
+		done: 'All multi-level indices updated successfully!',
 	}
 
 	static project = {
@@ -17,6 +16,21 @@ export class IndexWorkspaceApp extends Model {
 		default: null,
 	}
 
+	static scope = {
+		help: 'Indexing scope: "docs" (default) or "source".',
+		type: 'string',
+		alias: 's',
+		options: ['docs', 'source'],
+		default: 'docs',
+	}
+
+	static force = {
+		help: 'Force re-indexing all files even if they match the cache.',
+		type: 'boolean',
+		alias: 'f',
+		default: false,
+	}
+
 	/**
 	 * @param {Partial<IndexWorkspaceApp> | Record<string, any>} [data] Initial state
 	 * @param {Partial<import('@nan0web/types').ModelOptions> & Record<string, any>} [options] Model options
@@ -24,17 +38,7 @@ export class IndexWorkspaceApp extends Model {
 	constructor(data = {}, options = {}) {
 		super(data, options)
 		/** @type {string|null} Specific project filter to re-index */ this.project
-	}
-
-	async *run() {
-		// Delegate core business logic to the unified AiAppModel
-		const opts = /** @type {*} */ (this._)
-		const aiModel = new AiAppModel(
-			{},
-			{ workspaceRoot: opts.workspaceRoot, embedderUrl: opts.embedderUrl },
-		)
-		yield* aiModel.index({ targetProject: this.project || undefined })
-
-		yield { type: 'log', message: opts.t(IndexWorkspaceApp.UI.done) }
+		/** @type {"docs"|"source"} Indexing scope */ this.scope
+		/** @type {boolean} Force re-indexing */ this.force
 	}
 }

@@ -6,7 +6,6 @@ import hnswlib from 'hnswlib-node'
  * Inherits from Model to follow Model-as-Schema v2.
  *
  * Uses `this._.db` for file persistence (save/load).
- * If no db is injected, falls back to direct node:fs/promises.
  */
 export class VectorDB extends Model {
 	static UI = {
@@ -93,12 +92,10 @@ export class VectorDB extends Model {
 
 	/**
 	 * Persists the HNSW index and metadata to disk.
-	 * Uses `this._.db` if injected, otherwise falls back to `node:fs/promises`.
 	 * @param {string} filePath
 	 */
 	async save(filePath) {
-		this._index.writeIndexSync(filePath)
-
+		const db = this._.db
 		const metaPath = filePath + '.meta.json'
 		const mdJson = {
 			nextId: this._nextId,
@@ -108,11 +105,19 @@ export class VectorDB extends Model {
 			entries: Array.from(this._metadata.entries()),
 		}
 
-		if (this._.db) {
-			await /** @type {*} */ (this._.db).save(metaPath, mdJson)
+		if (db) {
+			if (db.location) {
+				const absPath = db.location(filePath)
+				this._index.writeIndexSync(absPath)
+			} else {
+				this._index.writeIndexSync(filePath)
+			}
+			await db.saveDocument(metaPath, mdJson)
 		} else {
+			// Environment without DB provider
 			const fs = await import('node:fs/promises')
-			await fs.writeFile(metaPath, JSON.stringify(mdJson))
+			this._index.writeIndexSync(filePath)
+			await fs.writeFile(metaPath, JSON.stringify(mdJson, null, 2))
 		}
 	}
 
@@ -122,37 +127,47 @@ export class VectorDB extends Model {
 	 * @returns {Promise<boolean>}
 	 */
 	async load(filePath) {
+		const db = this._.db
 		const metaPath = filePath + '.meta.json'
-		const fs = this._.db ? null : await import('node:fs/promises')
 
-		try {
-			if (this._.db) {
-				if (!(await /** @type {*} */ (this._.db).access(metaPath))) return false
+		if (db) {
+			const stat = await db.statDocument(metaPath)
+			if (!stat.exists) return false
+
+			const metaObj = (await db.get(metaPath)) ?? {}
+			this._applyMeta(metaObj)
+
+			if (db.location) {
+				const absPath = db.location(filePath)
+				this._index.readIndexSync(absPath)
 			} else {
-				await /** @type {*} */ (fs).stat(filePath)
+				this._index.readIndexSync(filePath)
 			}
-		} catch {
-			return false
-		}
-
-		let metaObj = {}
-		if (this._.db) {
-			metaObj = (await /** @type {*} */ (this._.db).load(metaPath)) ?? {}
+			return true
 		} else {
-			const metaContent = await /** @type {*} */ (fs).readFile(metaPath, 'utf-8').catch(() => '{}')
-			metaObj = JSON.parse(metaContent)
+			// Environment without DB provider (direct FS access)
+			const fs = await import('node:fs/promises')
+			const exists = await fs.stat(metaPath).then(() => true).catch(() => false)
+			if (!exists) return false
+			
+			const content = await fs.readFile(metaPath, 'utf8')
+			const metaObj = JSON.parse(content)
+			this._applyMeta(metaObj)
+			this._index.readIndexSync(filePath)
+			return true
 		}
+	}
 
+	_applyMeta(metaObj) {
 		if (metaObj.dim) this.dim = metaObj.dim
 		if (metaObj.space) this.space = metaObj.space
 		if (metaObj.maxElements) this.maxElements = metaObj.maxElements
 
 		this._index = new hnswlib.HierarchicalNSW(/** @type {*} */ (this.space), this.dim)
 		this._index.initIndex(this.maxElements)
-		this._index.readIndexSync(filePath)
-
+		
 		this._nextId = metaObj.nextId || 0
 		this._metadata = new Map(metaObj.entries || [])
-		return true
 	}
+
 }

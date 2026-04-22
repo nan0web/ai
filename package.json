@@ -1,6 +1,6 @@
 {
 	"name": "@nan0web/ai",
-	"version": "1.3.0",
+	"version": "1.4.0",
 	"description": "Unified AI Kernel for NaN0Web ecosystem - LLM provider abstraction",
 	"type": "module",
 	"bin": {
@@ -8,13 +8,18 @@
 	},
 	"main": "src/index.js",
 	"exports": {
-		".": "./src/index.js",
-		"./test": "./src/domain/TestAI.js",
-		"./embedder": "./src/domain/Embedder.js",
-		"./vector": "./src/domain/VectorDB.js",
-		"./indexer": "./src/domain/MarkdownIndexer.js",
-		"./agents": "./src/agents/AgentOrchestrator.js",
-		"./parser": "./src/agents/BoundaryParser.js"
+		".": {
+			"types": "./types/index.d.ts",
+			"default": "./src/index.js"
+		},
+		"./app": {
+			"types": "./types/domain/AiAppModel.d.ts",
+			"default": "./src/domain/AiAppModel.js"
+		},
+		"./ui/cli": {
+			"types": "./types/domain/AiAppModel.d.ts",
+			"default": "./src/domain/AiAppModel.js"
+		}
 	},
 	"files": [
 		"package.json",

@@ -2,7 +2,7 @@
  * AiAppModel — domain model for AI toolkit management (RAG, Indexing, MCP).
  * Follows Model-as-Schema v2 and OLMUI patterns.
  */
-export class AiAppModel extends Model {
+export class AiAppModel extends ModelAsApp {
     static UI: {
         indexingStarted: string;
         projectIndexed: string;
@@ -12,84 +12,54 @@ export class AiAppModel extends Model {
         searchQuery: string;
         noResults: string;
         mcpSuccess: string;
+        emptyQuery: string;
         error: string;
     };
-    static query: {
+    static command: {
         help: string;
-        default: string;
-        validate: (val: any) => true | "Query cannot be empty";
-    };
-    static project: {
-        help: string;
-        default: null;
+        options: (typeof GetSourceIntent | typeof SearchSourcesIntent | typeof IndexWorkspaceApp)[];
+        positional: boolean;
     };
     /**
      * @param {Partial<AiAppModel> | Record<string, any>} [data] Initial state
      * @param {Partial<import('@nan0web/types').ModelOptions> & Record<string, any>} [options] Model options
      */
     constructor(data?: Partial<AiAppModel> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions> & Record<string, any>);
-    /** @type {string} Semantic search query */ query: string;
-    /** @type {string|null} Specific project filter */ project: string | null;
+    /** @type {IndexWorkspaceApp|SearchSourcesIntent|null} */ command: IndexWorkspaceApp | SearchSourcesIntent | null;
+    run(): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ProgressIntent | import("@nan0web/ui/types/core/Intent.js").ResultIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
     /**
-     * Generator method for indexing (OLMUI Pattern)
-     * @param {Object} opts
-     * @param {string} [opts.targetProject]
+     * Rename original index to indexFull to avoid property name collision
      */
-    index(opts?: {
-        targetProject?: string | undefined;
-    }): AsyncGenerator<{
-        type: string;
-        message: any;
-        current: number;
-        total: number;
-        label?: undefined;
-        $project?: undefined;
-    } | {
-        type: string;
-        label: string;
-        total: number | undefined;
-        current: number | undefined;
-        message: any;
-        $project?: undefined;
-    } | {
-        type: string;
-        message: any;
-        $project: string | undefined;
-        current?: undefined;
-        total?: undefined;
-        label?: undefined;
-    }, void, unknown>;
+    indexFull(opts?: {}, force?: boolean): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ProgressIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
     /**
-     * Generator method for search (OLMUI Pattern)
-     * @param {string} query
-     * @param {Object} opts
-     * @param {number} [opts.k]
-     * @param {number} [opts.maxDistance]
-     * @param {string} [opts.targetProject]
+     * Rename original search to searchMethod
      */
-    search(query: string, opts?: {
-        k?: number | undefined;
-        maxDistance?: number | undefined;
-        targetProject?: string | undefined;
-    }): AsyncGenerator<{
-        type: string;
-        message: string;
-        $query: string;
-        $url: any;
-        data?: undefined;
-    } | {
-        type: string;
-        message: string;
-        $query?: undefined;
-        $url?: undefined;
-        data?: undefined;
-    } | {
-        type: string;
-        data: any[];
-        message?: undefined;
-        $query?: undefined;
-        $url?: undefined;
-    }, void, unknown>;
-    #private;
+    searchMethod(query: any, opts?: {}): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ResultIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
+    /**
+     * Retrieve a specific file by path or package identifier.
+     * @param {string} filePath
+     * @param {string} [version='latest']
+     */
+    getMethod(filePath: string, version?: string): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ResultIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
+    /**
+     * Returns the global dataset directory path for the current workspace.
+     * @returns {string}
+     */
+    getDatasetDir(): string;
+    /**
+     * @param {number[]} vec
+     * @param {{ k: number, maxDistance: number, targetProject: string | null, scope: string }} opts
+     * @returns {Promise<any[]>}
+     */
+    internalSearch(vec: number[], { k, maxDistance, targetProject, scope }: {
+        k: number;
+        maxDistance: number;
+        targetProject: string | null;
+        scope: string;
+    }): Promise<any[]>;
 }
-import { Model } from '@nan0web/types';
+export default AiAppModel;
+import { ModelAsApp } from '@nan0web/ui-cli';
+import { IndexWorkspaceApp } from './IndexWorkspaceApp.js';
+import { SearchSourcesIntent } from './SearchSourcesIntent.js';
+import { GetSourceIntent } from './GetSourceIntent.js';

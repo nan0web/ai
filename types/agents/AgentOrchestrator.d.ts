@@ -5,6 +5,7 @@ export class AgentOrchestrator extends Model {
     static agents: {
         [SysBuildAgent.alias]: typeof SysBuildAgent;
         'cnai:refactor': typeof CnaiRefactorAgent;
+        'cnai:search': typeof CnaiSearchAgent;
     };
     static intent: {
         help: string;
@@ -25,3 +26,4 @@ export class AgentOrchestrator extends Model {
 import { Model } from '@nan0web/types';
 import { SysBuildAgent } from './SysBuildAgent.js';
 import { CnaiRefactorAgent } from './CnaiRefactorAgent.js';
+import { CnaiSearchAgent } from './CnaiSearchAgent.js';

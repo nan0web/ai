@@ -3,7 +3,6 @@
  * Inherits from Model to follow Model-as-Schema v2.
  *
  * Uses `this._.db` for file persistence (save/load).
- * If no db is injected, falls back to direct node:fs/promises.
  */
 export class VectorDB extends Model {
     static UI: {
@@ -53,7 +52,6 @@ export class VectorDB extends Model {
     }>;
     /**
      * Persists the HNSW index and metadata to disk.
-     * Uses `this._.db` if injected, otherwise falls back to `node:fs/promises`.
      * @param {string} filePath
      */
     save(filePath: string): Promise<void>;
@@ -63,6 +61,7 @@ export class VectorDB extends Model {
      * @returns {Promise<boolean>}
      */
     load(filePath: string): Promise<boolean>;
+    _applyMeta(metaObj: any): void;
 }
 import { Model } from '@nan0web/types';
 import hnswlib from 'hnswlib-node';

@@ -2,6 +2,7 @@ import { Model } from '@nan0web/types'
 import { result } from '@nan0web/ui'
 import { SysBuildAgent } from './SysBuildAgent.js'
 import { CnaiRefactorAgent } from './CnaiRefactorAgent.js'
+import { CnaiSearchAgent } from './CnaiSearchAgent.js'
 
 /**
  * AgentOrchestrator — manages and executes subagents based on intent.
@@ -10,6 +11,7 @@ export class AgentOrchestrator extends Model {
 	static agents = {
 		[SysBuildAgent.alias]: SysBuildAgent,
 		'cnai:refactor': CnaiRefactorAgent,
+		'cnai:search': CnaiSearchAgent,
 	}
 
 	static intent = { help: 'Intent object with task and context', default: {} }

@@ -15,5 +15,9 @@ export * from './agents/AgentOrchestrator.js'
 export * from './agents/SysBuildAgent.js'
 export * from './agents/CnaiRefactorAgent.js'
 export * from './agents/BoundaryParser.js'
+export * from './domain/GetSourceIntent.js'
+export * from './domain/SearchSourcesIntent.js'
+export * from './domain/IndexWorkspaceApp.js'
+export * from './domain/AiAppModel.js'
 
 export const UI = ui

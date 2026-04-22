@@ -65,7 +65,7 @@ describe('Release v1.3.0 - Model-as-Schema v2 & Contextual ModelError', () => {
 	it('Infrastructure Isolation: uses this._.db', async () => {
 		let callCount = 0
 		const mockDb = {
-			save: async (path, data) => {
+			saveDocument: async (path, data) => {
 				callCount++
 			},
 		}

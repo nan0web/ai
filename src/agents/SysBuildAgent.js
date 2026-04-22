@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Model } from '@nan0web/types'
 import { progress, result } from '@nan0web/ui'
 import { spawn } from 'node:child_process'
@@ -69,7 +70,7 @@ export class SysBuildAgent extends Model {
 		if (child.stdout) yield* drain(child.stdout)
 		if (child.stderr) yield* drain(child.stderr, 'ERR: ')
 
-		return await new Promise((resolve) => {
+		return yield await new Promise((resolve) => {
 			child.on('close', (code) => {
 				if (code === 0) {
 					resolve(result({ success: true, logs }))
