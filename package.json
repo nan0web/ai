@@ -1,6 +1,6 @@
 {
 	"name": "@nan0web/ai",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"description": "Unified AI Kernel for NaN0Web ecosystem - LLM provider abstraction",
 	"type": "module",
 	"bin": {
@@ -29,6 +29,7 @@
 		"src/**/*.js",
 		"types/**/*.d.ts",
 		"!src/**/*.test.js",
+		"!src/**/*.story.js",
 		"!src/**/*.spec.js",
 		"!src/test/**",
 		"!src/README.md.js"
@@ -41,7 +42,8 @@
 		"build": "tsc",
 		"test": "node --test --test-timeout=3333 'src/**/*.test.js'",
 		"test:docs": "node --test src/README.md.js",
-		"test:all": "npm run test && npm run test:docs && npm run build && npm run lint && npm run knip",
+		"test:stories": "node --test 'src/**/*.story.js'",
+		"test:all": "npm run test && npm run test:stories && npm run test:docs && npm run build && npm run lint && npm run knip",
 		"release:spec": "node --test 'releases/**/*.spec.js'",
 		"index": "node bin/index-workspace.js",
 		"query": "node bin/search-workspace.js",
@@ -73,20 +75,21 @@
 		"@ai-sdk/huggingface": "^1.0.37",
 		"@ai-sdk/openai": "^2.0.98",
 		"@modelcontextprotocol/sdk": "^1.27.1",
-		"@openrouter/ai-sdk-provider": "^1.5.4",
+		"@nan0web/db-fs": "workspace:*",
 		"@nan0web/ui": "workspace:*",
+		"@openrouter/ai-sdk-provider": "^1.5.4",
 		"ai": "^5.0.150",
 		"hnswlib-node": "^3.0.0"
 	},
 	"devDependencies": {
-		"@nan0web/db-fs": "workspace:*",
 		"@nan0web/test": "workspace:*",
 		"knip": "^5.86.0"
 	},
 	"knip": {
 		"ignoreDependencies": [
 			"@nan0web/ui",
-			"@modelcontextprotocol/sdk"
+			"@modelcontextprotocol/sdk",
+			"@nan0web/db-fs"
 		],
 		"ignore": [
 			"bin/*.js",

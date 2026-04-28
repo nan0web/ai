@@ -68,6 +68,8 @@ describe('Release v1.3.0 - Model-as-Schema v2 & Contextual ModelError', () => {
 			saveDocument: async (path, data) => {
 				callCount++
 			},
+			location: (filePath) => filePath,
+			statDocument: async () => ({ exists: false }),
 		}
 		const vec = new VectorDB({ dim: 2 }, { db: mockDb })
 		vec.addVector([1, 0])

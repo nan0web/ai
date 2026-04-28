@@ -38,15 +38,37 @@ export class SearchSourcesIntent extends ModelAsApp {
         options: string[];
         default: string;
     };
+    static strictSearch: {
+        alias: string;
+        help: string;
+        type: string;
+        default: boolean;
+    };
+    static json: {
+        help: string;
+        type: string;
+        default: boolean;
+    };
+    static sources: {
+        help: string;
+        type: string;
+        default: boolean;
+    };
     /**
      * @param {Partial<SearchSourcesIntent> | Record<string, any>} [data] Initial state
-     * @param {Partial<import('@nan0web/types').ModelOptions> & Record<string, any>} [options] Model options
+     * @param {any} [options] Model options
      */
-    constructor(data?: Partial<SearchSourcesIntent> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions> & Record<string, any>);
+    constructor(data?: Partial<SearchSourcesIntent> | Record<string, any>, options?: any);
     /** @type {string} */ query: string;
     /** @type {string|null} */ project: string | null;
     /** @type {"docs"|"source"} */ scope: "docs" | "source";
     /** @type {number} */ limit: number;
     /** @type {number} */ maxDistance: number;
+    /** @type {boolean} */ strictSearch: boolean;
+    /** @type {boolean} */ json: boolean;
+    /**
+     * @returns {AsyncGenerator<any, any, any>}
+     */
+    run(): AsyncGenerator<any, any, any>;
 }
 import { ModelAsApp } from '@nan0web/ui-cli';

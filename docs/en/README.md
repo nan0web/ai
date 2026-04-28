@@ -117,25 +117,116 @@ How to use TestAI for testing?
 import { TestAI } from '@nan0web/ai/test'
 const ai = new TestAI()
 ```
+## Agent Orchestration (v1.4.0)
+
+High-level task orchestration via specialized agents.
+
+### AgentOrchestrator
+
+How to use AgentOrchestrator?
+```js
+import { AgentOrchestrator } from '@nan0web/ai'
+const orch = new AgentOrchestrator({
+	intent: { task: 'sys:build', context: { dir: '.' } },
+})
+```
+### CnaiRefactorAgent
+
+Specialized agent for code refactoring with boundary-aware communication.
+
+How to use CnaiRefactorAgent?
+```js
+import { CnaiRefactorAgent } from '@nan0web/ai'
+const agent = new CnaiRefactorAgent({
+	files: { 'index.js': 'console.log("hello")' },
+	instructions: 'Change output to "world"',
+})
+```
+### BoundaryParser
+
+Utility for parsing OLMUI boundary markers from multiline responses.
+
+How to parse boundaries?
+```js
+import { parseBoundaries } from '@nan0web/ai'
+const raw = '---boundary:src/app.js---\nconsole.log(1)\n---boundary---'
+const files = parseBoundaries(raw)
+```
+## MCP Server
+
+Expose semantic search tools as a Model Context Protocol (MCP) server.
+
+How to install MCP server?
+```js
+nan0ai mcp install
+```
+## CLI: Index & Search
+
+`@nan0web/ai` provides powerful CLI commands for vector database management and semantic search across the monorepo.
+
+### `nan0ai index`
+
+Creates or updates the vector database cache using embeddings (e.g. OpenAI or Cerebras). By default, it indexes the `docs` scope (Markdown documentation).
+
+How to index documentation or source code?
+```bash
+# Index documentation for all projects
+nan0ai index
+
+# Index Source codes (.d.ts files) for all projects
+nan0ai index --scope source
+
+# Force re-index a specific project (ignores cache)
+nan0ai index --force -p my-project
+```
+
+#### Indexing Private Repositories
+To index private or 3rd-party repositories (like commercial apps) that are not tracked in the global `nan0web_store.csv`, you can create a `nan0web_store.local.csv` file in the workspace root.
+The indexer will automatically pick this up and index your private apps. You can safely add `.local.csv` to `.gitignore`.
+
+How to add private repositories to the search index?
+```js
+/**
+	 * Format for `nan0web_store.local.csv`:
+	 * ```csv
+	 * name,workspace,path,tags,version,description
+	 * @my-private/app,apps,apps/3rdparty/my-private/app,,1.0.0,My Private App
+	 * ```
+ */
+```
+### `nan0ai search`
+
+Search the vector database semantically.
+
+How to search the vector database?
+```bash
+nan0ai search "how to setup auth"
+
+# Search within Source code ONLY, with strict text matching
+nan0ai search "class User" --scope source --strict
+```
+
 ## Architecture
 
 ```
 @nan0web/ai
-├── AI.js              — Provider abstraction (streamText, generateText)
-├── ModelInfo.js       — Model metadata & capabilities
-├── ModelProvider.js   — Remote model discovery
-├── AiStrategy         — Smart model selection (finance/speed/volume/level)
-├── TestAI.js          — Deterministic testing mock
-├── Usage.js           — Token tracking & cost calculation
-└── Pricing.js         — Per-token pricing calculations
+├── domain/             — Core business logic
+│   ├── AI.js           — Unified provider kernel
+│   ├── AiStrategy.js   — Scoring & fallback logic
+│   ├── VectorDB.js     — HNSWLib persistence
+│   └── Embedder.js     — Text-to-Vector transformations
+└── agents/             — High-level task delegates
+    ├── AgentOrchestrator.js — Dynamic task delegation
+    ├── CnaiRefactorAgent.js — Refactoring intelligence
+    └── BoundaryParser.js    — Protocol parsing
 ```
 
 How to verify the package engine requirement?
 
-## Documentation
+## Contributing
 
-- [PLAN.md](./PLAN.md) — Detailed architecture and API plan
+How to participate? – [see CONTRIBUTING.md]($pkgURL/blob/main/CONTRIBUTING.md)
 
 ## License
 
-How to check the license?
+ISC LICENSE – [see full text]($pkgURL/blob/main/LICENSE)

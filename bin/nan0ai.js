@@ -17,14 +17,21 @@ const CONTEXT_PATH = path.join(GLOBAL_CONFIG_DIR, 'context.nan0')
 let root = process.cwd()
 let found = false
 
-// 1. Try to find local workspace marker
+// 1. Try to find local workspace marker (monorepo root)
 while (root.length > 2) {
-	if (fs.existsSync(path.join(root, 'nan0web_store.csv'))) {
+	const marker = path.join(root, 'pnpm-workspace.yaml')
+	if (
+		fs.existsSync(path.join(root, 'nan0web_store.csv')) ||
+		fs.existsSync(marker) ||
+		fs.existsSync(path.join(root, 'lerna.json'))
+	) {
 		found = true
 		break
 	}
 	root = path.dirname(root)
 }
+if (found) console.log(`nan0ai: Found workspace root at ${root}`)
+else console.log(`nan0ai: Workspace root not found, using ${root}`)
 
 // 2. Fallback to global context if not found locally
 if (!found && fs.existsSync(CONTEXT_PATH)) {
@@ -49,6 +56,7 @@ if (!fs.existsSync(GLOBAL_CONFIG_DIR)) fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursi
 fs.writeFileSync(CONTEXT_PATH, `lastWorkspace: ${root}\n`)
 
 bootstrapApp(AiAppModel, {
+	root,
 	workspaceRoot: root,
 	appName: 'nan0ai'
 })

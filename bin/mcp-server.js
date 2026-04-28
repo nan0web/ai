@@ -5,6 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -19,6 +20,8 @@ const embedder = new Embedder({ baseURL: process.env.EMBEDDER_URL || 'http://loc
 
 /** @type {Map<string, VectorDB>} */
 const databases = new Map()
+/** @type {Map<string, string>} */
+const packagePaths = new Map()
 
 async function initDatabases() {
 	if (databases.size > 0) return // Already loaded
@@ -27,30 +30,34 @@ async function initDatabases() {
 	const addProject = (name, dir) => {
 		const indexPath = path.join(dir, '.datasets', 'workspace-index.bin')
 		toLoad.push({ name, indexPath })
+		packagePaths.set(name, dir)
 	}
 
-	// 1. Root
-	addProject('Platform Root', workspaceRoot)
-
-	// 2. Apps
-	try {
-		const appsDir = path.join(workspaceRoot, 'apps')
-		const apps = await fs.readdir(appsDir, { withFileTypes: true }).catch(() => [])
-		for (const app of apps) {
-			if (app.isDirectory() && !app.name.startsWith('.'))
-				addProject(`App: ${app.name}`, path.join(appsDir, app.name))
+	// Load projects from nan0web_store.csv and nan0web_store.local.csv
+	const storeDir = path.join(os.homedir(), '.nan0web/store')
+	const stores = ['nan0web_store.csv', 'nan0web_store.local.csv']
+	for (const store of stores) {
+		try {
+			const storePath = path.join(storeDir, store)
+			const csvContent = await fs.readFile(storePath, 'utf8')
+			const lines = csvContent.split('\n').filter(l => l.trim()).slice(1)
+			for (const line of lines) {
+				const parts = line.split(',')
+				if (parts.length >= 3) {
+					const name = parts[0].replace(/"/g, '').trim()
+					const relPath = parts[2].replace(/"/g, '').trim()
+					const absPath = path.resolve(workspaceRoot, relPath)
+					if (name && absPath) addProject(name, absPath)
+				}
+			}
+		} catch (e) {
+			// Skip if file doesn't exist
 		}
-	} catch (e) {}
-
-	// 3. Packages
-	try {
-		const pkgsDir = path.join(workspaceRoot, 'packages')
-		const pkgs = await fs.readdir(pkgsDir, { withFileTypes: true }).catch(() => [])
-		for (const pkg of pkgs) {
-			if (pkg.isDirectory() && !pkg.name.startsWith('.'))
-				addProject(`Package: ${pkg.name}`, path.join(pkgsDir, pkg.name))
-		}
-	} catch (e) {}
+	}
+    
+    if (toLoad.length === 0) {
+        addProject('Platform Root', workspaceRoot)
+    }
 
 	// Try loading each
 	for (const p of toLoad) {
@@ -63,7 +70,7 @@ async function initDatabases() {
 }
 
 const server = new Server(
-	{ name: 'nan0web-knowledge', version: '1.2.0' },
+	{ name: 'nan0web-knowledge', version: '1.3.0' },
 	{ capabilities: { tools: {} } },
 )
 
@@ -93,26 +100,41 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 						},
 						max_distance: {
 							type: 'number',
-							description: 'Maximum distance threshold (default 0.18). For E5 multilingual models: <0.12 = perfect match, 0.12-0.15 = strong, 0.15-0.18 = cross-lingual match, >0.20 = garbage.',
+							description: 'Maximum distance threshold (default 0.18).',
 						},
 					},
 					required: ['query'],
 				},
 			},
+			{
+				name: 'get_resource',
+				description: 'Retrieves a source file or documentation by logical path (e.g. @nan0web/ui/src/index.js) or relative path within a package.',
+				inputSchema: {
+					type: 'object',
+					properties: {
+						path: {
+							type: 'string',
+							description: 'The logical or relative path to the resource.',
+						}
+					},
+					required: ['path'],
+				},
+			}
 		],
 	}
 })
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+	await initDatabases()
+	const args = request.params.arguments || {}
+
 	if (request.params.name === 'search_knowledge_base') {
-		const args = request.params.arguments || {}
 		const query = args.query
 		const targetProjects = args.projects
 		const k = args.k || 10
 		const maxDistance = args.max_distance || 0.18
 
 		try {
-			await initDatabases()
 			const instructPrefix = 'Instruct: Retrieve relevant documentation, workflows, and architectural details to assist the software engineer.\nQuery: '
 			const vec = await embedder.embed(instructPrefix + query)
 
@@ -120,8 +142,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 			for (const [name, vdb] of databases.entries()) {
 				if (targetProjects && !targetProjects.includes(name)) continue
-				// HNSW search is O(logN), so fetching 100 vs 20 takes the same <1ms time, 
-				// but guarantees we have enough candidates after deduplication.
 				const fetchCount = Math.max(k * 10, 100)
 				const res = vdb.search(vec, fetchCount)
 				for (const r of res) {
@@ -131,10 +151,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				}
 			}
 
-			// Sort globally by distance
 			allResults.sort((a, b) => a.distance - b.distance)
 
-			// Deduplicate by file path (keep the best chunk for each file)
 			const seenFiles = new Set()
 			const topResults = []
 			for (const r of allResults) {
@@ -152,18 +170,56 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				}
 			}
 
-			const resultsText = topResults
-				.map(
-					(r) =>
-						`--- [Project: ${r.project}] [File: ${r.file || 'Unknown'} (Dist: ${r.distance.toFixed(3)})] ---\n${r.content}`,
-				)
-				.join('\n\n')
+			let resultsText = ''
+			for (const r of topResults) {
+				let startLine = '?'
+				let endLine = '?'
+				try {
+					const absPath = path.join(workspaceRoot, r.file || '')
+					const fullText = await fs.readFile(absPath, 'utf8')
+					const idx = fullText.indexOf(r.content)
+					if (idx !== -1) {
+						startLine = fullText.substring(0, idx).split('\n').length
+						endLine = startLine + r.content.split('\n').length - 1
+					}
+				} catch (e) {}
+
+				resultsText += `────────────────────────────────────────\n`
+				resultsText += `📦 Package: ${r.project} | 📄 File: ${r.file || 'Unknown'} | 📝 Lines: ${startLine}-${endLine} | Dist: ${r.distance.toFixed(3)}\n`
+				resultsText += `────────────────────────────────────────\n`
+				resultsText += `${r.content}\n\n`
+			}
 
 			return { content: [{ type: 'text', text: resultsText }] }
 		} catch (err) {
 			return { content: [{ type: 'text', text: `Error during retrieval: ${err.message}` }] }
 		}
 	}
+
+	if (request.params.name === 'get_resource') {
+		const filePath = args.path
+		try {
+			let resolvedPath = filePath
+			if (filePath.startsWith('@')) {
+				const pkgName = filePath.split('/').slice(0, 2).join('/')
+				const subPath = filePath.split('/').slice(2).join('/')
+				const baseDir = packagePaths.get(pkgName)
+				if (baseDir) {
+					resolvedPath = path.join(baseDir, subPath)
+				}
+			} else if (!path.isAbsolute(filePath)) {
+				resolvedPath = path.join(workspaceRoot, filePath)
+			}
+
+			const content = await fs.readFile(resolvedPath, 'utf8')
+			return {
+				content: [{ type: 'text', text: content }],
+			}
+		} catch (err) {
+			return { content: [{ type: 'text', text: `Failed to read file ${filePath}: ${err.message}` }] }
+		}
+	}
+
 	return { content: [{ type: 'text', text: 'Unknown tool' }] }
 })
 

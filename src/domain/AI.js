@@ -492,7 +492,6 @@ export class AI {
 					onChunk,
 					onStepFinish,
 					onError: (err) => {
-						console.error('[AI Stream Error]', err)
 						onError?.(err)
 					},
 					onFinish,

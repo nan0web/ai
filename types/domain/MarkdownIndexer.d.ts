@@ -12,6 +12,10 @@ export class MarkdownIndexer extends Model {
     static targetProject: {
         default: null;
     };
+    static ignore: {
+        default: never[];
+        type: string[];
+    };
     static DEFAULT_SCOPE: string;
     /**
      * @param {string} content
@@ -22,22 +26,27 @@ export class MarkdownIndexer extends Model {
      * @param {object} [data]
      * @param {string} [data.scope='docs'] Indexing scope ('docs' or 'source')
      * @param {string} [data.targetProject] Optional project filter
+     * @param {string[]} [data.ignore] Directories to ignore
      * @param {Partial<import('@nan0web/types').ModelOptions>} [options]
      */
     constructor(data?: {
         scope?: string | undefined;
         targetProject?: string | undefined;
+        ignore?: string[] | undefined;
     }, options?: Partial<import("@nan0web/types").ModelOptions>);
     /** @type {number} */ maxChars: number;
     /** @type {number} */ overlap: number;
     /** @type {'docs'|'source'} */ scope: "docs" | "source";
     /** @type {string|null} */ targetProject: string | null;
+    /** @type {string|null} */ targetDir: string | null;
+    /** @type {string[]} */ ignore: string[];
     /**
-     * Рекурсивний обхід директорій через listDir
-     * @param {string} uri
+     * Рекурсивний обхід директорій з фільтрацією за областю видимості (docs/source)
+     * @param {string} dir Поточна директорія
+     * @param {string} [baseDir] Базова директорія проекту для розрахунку відносних шляхів
      * @returns {Promise<string[]>}
      */
-    scanRecursive(dir: any): Promise<string[]>;
+    scanRecursive(dir: string, baseDir?: string): Promise<string[]>;
     /**
      * @param {string} content
      * @param {Object} metadata
@@ -47,6 +56,7 @@ export class MarkdownIndexer extends Model {
         content: string;
         hash: string;
     } & any>;
+    getWorkspaceRoot(): string;
     getDatasetDir(): string;
     /**
      * Scans the workspace and indexes target markdown files.
@@ -54,46 +64,21 @@ export class MarkdownIndexer extends Model {
      */
     indexAll(embedder: import("./Embedder.js").Embedder, opts?: {
         force: boolean;
-    }): AsyncGenerator<{
-        type: string;
-        total: number;
-        current?: undefined;
-        phase?: undefined;
-        file?: undefined;
-        project?: undefined;
-        name?: undefined;
-        dir?: undefined;
-        files?: undefined;
-    } | {
-        type: string;
-        current: number;
-        total: number;
-        phase: string;
-        file: string;
-        project: any;
-        name?: undefined;
-        dir?: undefined;
-        files?: undefined;
-    } | {
-        type: string;
-        name: any;
-        dir: any;
-        files: any;
-        current: number;
-        total: number;
-        phase: string;
-        file?: undefined;
-        project?: undefined;
-    } | {
-        type: string;
-        name: any;
-        dir: any;
-        files: any;
-        current: number;
-        total: number;
-        phase?: undefined;
-        file?: undefined;
-        project?: undefined;
-    }, void, unknown>;
+    }): AsyncGenerator<any, void, unknown>;
+    /**
+     * Searches across all indexed projects in the workspace.
+     * @param {string} query
+     * @param {Object} opts
+     * @param {number} [opts.limit=10]
+     * @param {boolean} [opts.strict=false]
+     * @param {number} [opts.maxDistance=0.18]
+     * @param {string} [opts.project]
+     */
+    search(query: string, opts?: {
+        limit?: number | undefined;
+        strict?: boolean | undefined;
+        maxDistance?: number | undefined;
+        project?: string | undefined;
+    }): Promise<any[]>;
 }
 import { Model } from '@nan0web/types';

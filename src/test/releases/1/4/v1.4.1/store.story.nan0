@@ -1,0 +1,22 @@
+- name: list-md
+  story:
+    - StoreApp:
+        action: list
+    - show: "*"
+    - result: "*"
+
+- name: list-json
+  story:
+    - StoreApp:
+        action: list
+        json: true
+        raw: true
+    - result: "*"
+
+- name: add-project
+  story:
+    - StoreApp:
+        action: add
+        path: packages/ai
+    - show: "*"
+    - result: "*"

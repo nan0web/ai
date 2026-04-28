@@ -19,5 +19,7 @@ export * from './domain/GetSourceIntent.js'
 export * from './domain/SearchSourcesIntent.js'
 export * from './domain/IndexWorkspaceApp.js'
 export * from './domain/AiAppModel.js'
+export * from './domain/ChatSession.js'
+export * from './domain/TestAI.js'
 
 export const UI = ui

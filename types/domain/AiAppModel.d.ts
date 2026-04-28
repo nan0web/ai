@@ -1,65 +1,43 @@
 /**
  * AiAppModel — domain model for AI toolkit management (RAG, Indexing, MCP).
- * Follows Model-as-Schema v2 and OLMUI patterns.
  */
 export class AiAppModel extends ModelAsApp {
+    static alias: string;
     static UI: {
-        indexingStarted: string;
-        projectIndexed: string;
-        projectCached: string;
-        scanningFiles: string;
-        embeddingChunks: string;
-        searchQuery: string;
-        noResults: string;
-        mcpSuccess: string;
+        title: string;
+        icon: string;
         emptyQuery: string;
-        error: string;
     };
     static command: {
         help: string;
-        options: (typeof GetSourceIntent | typeof SearchSourcesIntent | typeof IndexWorkspaceApp)[];
+        options: (typeof GetSourceIntent | typeof SearchSourcesIntent | typeof IndexWorkspaceApp | typeof SyncWorkspaceApp | typeof StoreApp | typeof ShowIndexIntent)[];
         positional: boolean;
     };
     /**
      * @param {Partial<AiAppModel> | Record<string, any>} [data] Initial state
-     * @param {Partial<import('@nan0web/types').ModelOptions> & Record<string, any>} [options] Model options
+     * @param {import('@nan0web/ui').ModelAsAppOptions & Record<string, any>} [options] Model options
      */
-    constructor(data?: Partial<AiAppModel> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions> & Record<string, any>);
-    /** @type {IndexWorkspaceApp|SearchSourcesIntent|null} */ command: IndexWorkspaceApp | SearchSourcesIntent | null;
-    run(): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ProgressIntent | import("@nan0web/ui/types/core/Intent.js").ResultIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
+    constructor(data?: Partial<AiAppModel> | Record<string, any>, options?: import("@nan0web/ui").ModelAsAppOptions & Record<string, any>);
+    /** @type {InstanceType<typeof IndexWorkspaceApp> | InstanceType<typeof SyncWorkspaceApp> | InstanceType<typeof StoreApp> | SearchSourcesIntent | GetSourceIntent} */
+    command: InstanceType<typeof IndexWorkspaceApp> | InstanceType<typeof SyncWorkspaceApp> | InstanceType<typeof StoreApp> | SearchSourcesIntent | GetSourceIntent;
     /**
-     * Rename original index to indexFull to avoid property name collision
+     * Main execution entry point for AiAppModel.
+     * Acts as a router, delegating execution to the appropriate subcommand (Executor).
+     * @returns {AsyncGenerator<any, any, any>}
      */
-    indexFull(opts?: {}, force?: boolean): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ProgressIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
+    run(): AsyncGenerator<any, any, any>;
     /**
-     * Rename original search to searchMethod
+     * Internal search for RAG and programmatic usage.
+     * @param {number[] | Float32Array} vector
+     * @param {object} [opts]
+     * @returns {Promise<Array<any>>}
      */
-    searchMethod(query: any, opts?: {}): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ResultIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
-    /**
-     * Retrieve a specific file by path or package identifier.
-     * @param {string} filePath
-     * @param {string} [version='latest']
-     */
-    getMethod(filePath: string, version?: string): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ResultIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
-    /**
-     * Returns the global dataset directory path for the current workspace.
-     * @returns {string}
-     */
-    getDatasetDir(): string;
-    /**
-     * @param {number[]} vec
-     * @param {{ k: number, maxDistance: number, targetProject: string | null, scope: string }} opts
-     * @returns {Promise<any[]>}
-     */
-    internalSearch(vec: number[], { k, maxDistance, targetProject, scope }: {
-        k: number;
-        maxDistance: number;
-        targetProject: string | null;
-        scope: string;
-    }): Promise<any[]>;
+    internalSearch(vector: number[] | Float32Array, opts?: object): Promise<Array<any>>;
 }
-export default AiAppModel;
 import { ModelAsApp } from '@nan0web/ui-cli';
 import { IndexWorkspaceApp } from './IndexWorkspaceApp.js';
+import { SyncWorkspaceApp } from './SyncWorkspaceApp.js';
+import { StoreApp } from './StoreApp.js';
 import { SearchSourcesIntent } from './SearchSourcesIntent.js';
 import { GetSourceIntent } from './GetSourceIntent.js';
+import { ShowIndexIntent } from './ShowIndexIntent.js';

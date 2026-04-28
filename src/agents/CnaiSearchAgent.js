@@ -30,7 +30,7 @@ export class CnaiSearchAgent extends Model {
 		// 4. Повернення знайдених знань у вигляді чистої мапи файлів.
 
 		yield progress(`Імплементація Vector DB / RAG очікується...`)
-		
+
 		return yield result({
 			success: true,
 			files: {}, // Шлях -> Контент

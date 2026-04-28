@@ -1,5 +1,9 @@
 import { Model, ModelError } from '@nan0web/types'
 import hnswlib from 'hnswlib-node'
+import path from 'node:path'
+import fs from 'node:fs'
+import { DBFS } from '@nan0web/db-fs'
+const fsp = fs.promises
 
 /**
  * VectorDB — HNSW vector index with metadata storage.
@@ -28,7 +32,15 @@ export class VectorDB extends Model {
 		super(data, options)
 		/** @type {number} Embedding vector dimension */ this.dim = Number(this.dim)
 		/** @type {string} Distance metric to use */ this.space
-		/** @type {number} Max element capacity */ this.maxElements = Number(this.maxElements)
+		/** @type {number} Max element capacity */ this.maxElements = Math.max(
+			1,
+			Number(this.maxElements || 100000),
+		)
+
+		// Ensure db is always available (fixes callback-based fs crash in MCP server)
+		if (!this._.db) {
+			this._.db = new DBFS()
+		}
 
 		/** @type {hnswlib.HierarchicalNSW} Native HNSW index instance */
 		this._index = new hnswlib.HierarchicalNSW(/** @type {*} */ (this.space), this.dim)
@@ -78,7 +90,18 @@ export class VectorDB extends Model {
 		}
 
 		const num = Math.min(k, this._metadata.size)
-		const results = this._index.searchKnn(arr, num)
+		if (num <= 0) return []
+
+		let results
+		try {
+			results = this._index.searchKnn(arr, num)
+		} catch (e) {
+			console.error(
+				`VectorDB.search failed for ${num} neighbors. maxElements: ${this.maxElements}, dim: ${this.dim}, space: ${this.space}`,
+				e,
+			)
+			throw e
+		}
 
 		const output = []
 		for (let i = 0; i < results.neighbors.length; i++) {
@@ -95,7 +118,7 @@ export class VectorDB extends Model {
 	 * @param {string} filePath
 	 */
 	async save(filePath) {
-		const db = this._.db
+		const db = /** @type {any} */ (this._.db)
 		const metaPath = filePath + '.meta.json'
 		const mdJson = {
 			nextId: this._nextId,
@@ -105,69 +128,48 @@ export class VectorDB extends Model {
 			entries: Array.from(this._metadata.entries()),
 		}
 
-		if (db) {
-			if (db.location) {
-				const absPath = db.location(filePath)
-				this._index.writeIndexSync(absPath)
-			} else {
-				this._index.writeIndexSync(filePath)
-			}
-			await db.saveDocument(metaPath, mdJson)
-		} else {
-			// Environment without DB provider
-			const fs = await import('node:fs/promises')
-			this._index.writeIndexSync(filePath)
-			await fs.writeFile(metaPath, JSON.stringify(mdJson, null, 2))
-		}
+		const absPath = db.location(filePath)
+		await fsp.mkdir(path.dirname(absPath), { recursive: true })
+		this._index.writeIndexSync(absPath)
+		await db.saveDocument(metaPath, mdJson)
 	}
 
 	/**
 	 * Loads a previously persisted HNSW index and metadata from disk.
 	 * @param {string} filePath
+	 * @param {object} [opts]
+	 * @param {boolean} [opts.metaOnly=false]
 	 * @returns {Promise<boolean>}
 	 */
-	async load(filePath) {
-		const db = this._.db
+	async load(filePath, opts = {}) {
+		const db = /** @type {any} */ (this._.db)
 		const metaPath = filePath + '.meta.json'
+		const metaOnly = opts.metaOnly || false
 
-		if (db) {
-			const stat = await db.statDocument(metaPath)
-			if (!stat.exists) return false
+		const stat = await db.statDocument(metaPath)
+		if (!stat.exists) return false
 
-			const metaObj = (await db.get(metaPath)) ?? {}
-			this._applyMeta(metaObj)
+		const metaObj = (await db.get(metaPath)) ?? {}
+		this._applyMeta(metaObj, false)
 
-			if (db.location) {
-				const absPath = db.location(filePath)
-				this._index.readIndexSync(absPath)
-			} else {
-				this._index.readIndexSync(filePath)
-			}
-			return true
-		} else {
-			// Environment without DB provider (direct FS access)
-			const fs = await import('node:fs/promises')
-			const exists = await fs.stat(metaPath).then(() => true).catch(() => false)
-			if (!exists) return false
-			
-			const content = await fs.readFile(metaPath, 'utf8')
-			const metaObj = JSON.parse(content)
-			this._applyMeta(metaObj)
-			this._index.readIndexSync(filePath)
-			return true
-		}
+		if (metaOnly) return true
+
+		const absPath = db.location(filePath)
+		this._index.readIndexSync(absPath)
+		return true
 	}
 
-	_applyMeta(metaObj) {
-		if (metaObj.dim) this.dim = metaObj.dim
-		if (metaObj.space) this.space = metaObj.space
-		if (metaObj.maxElements) this.maxElements = metaObj.maxElements
+	_applyMeta(metaObj, init = true) {
+		if (metaObj.dim) this.dim = Number(metaObj.dim)
+		if (metaObj.space) this.space = String(metaObj.space)
+		this.maxElements = Math.max(1, Number(metaObj.maxElements || this.maxElements || 100000))
 
 		this._index = new hnswlib.HierarchicalNSW(/** @type {*} */ (this.space), this.dim)
-		this._index.initIndex(this.maxElements)
-		
+		if (init) {
+			this._index.initIndex(this.maxElements)
+		}
+
 		this._nextId = metaObj.nextId || 0
 		this._metadata = new Map(metaObj.entries || [])
 	}
-
 }

@@ -236,6 +236,67 @@ function testRender() {
 
 	/**
 	 * @docs
+	 * ## CLI: Index & Search
+	 *
+	 * `@nan0web/ai` provides powerful CLI commands for vector database management and semantic search across the monorepo.
+	 *
+	 * ### `nan0ai index`
+	 *
+	 * Creates or updates the vector database cache using embeddings (e.g. OpenAI or Cerebras). By default, it indexes the `docs` scope (Markdown documentation).
+	 */
+	it('How to index documentation or source code?', () => {
+		/**
+		 * ```bash
+		 * # Index documentation for all projects
+		 * nan0ai index
+		 *
+		 * # Index Source codes (.d.ts files) for all projects
+		 * nan0ai index --scope source
+		 *
+		 * # Force re-index a specific project (ignores cache)
+		 * nan0ai index --force -p my-project
+		 * ```
+		 */
+		assert.ok(pkg.bin.nan0ai)
+	})
+
+	/**
+	 * @docs
+	 * #### Indexing Private Repositories
+	 * To index private or 3rd-party repositories (like commercial apps) that are not tracked in the global `nan0web_store.csv`, you can create a `nan0web_store.local.csv` file in the workspace root.
+	 * The indexer will automatically pick this up and index your private apps. You can safely add `.local.csv` to `.gitignore`.
+	 */
+	it('How to add private repositories to the search index?', () => {
+		/**
+		 * Format for `nan0web_store.local.csv`:
+		 * ```csv
+		 * name,workspace,path,tags,version,description
+		 * @my-private/app,apps,apps/3rdparty/my-private/app,,1.0.0,My Private App
+		 * ```
+		 */
+		assert.ok(pkg.bin.nan0ai)
+	})
+
+	/**
+	 * @docs
+	 * ### `nan0ai search`
+	 *
+	 * Search the vector database semantically.
+	 */
+	it('How to search the vector database?', () => {
+		/**
+		 * ```bash
+		 * nan0ai search "how to setup auth"
+		 *
+		 * # Search within Source code ONLY, with strict text matching
+		 * nan0ai search "class User" --scope source --strict
+		 * ```
+		 */
+		assert.ok(pkg.bin.nan0ai)
+	})
+
+	/**
+	 * @docs
 	 * ## Architecture
 	 *
 	 * ```
@@ -284,12 +345,12 @@ describe('Rendering README.md', async () => {
 	const source = await fs.loadDocument('src/README.md.js', '')
 	const parser = new DocsParser()
 	const text = String(parser.decode(source))
-	await fs.saveDocument('README.md', text)
+	await fs.saveDocument('docs/en/README.md', text)
 
 	const dataset = DatasetParser.parse(text, pkg.name)
 	await fs.saveDocument('.datasets/README.dataset.jsonl', dataset)
 
-	it(`document is rendered in README.md [${format(Buffer.byteLength(text))}b]`, () => {
+	it(`document is rendered in docs/en/README.md [${format(Buffer.byteLength(text))}b]`, () => {
 		assert.ok(text.includes('## License'))
 		assert.ok(text.includes('@nan0web/ai'))
 	})

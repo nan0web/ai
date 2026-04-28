@@ -1,13 +1,13 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
+import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import { parseBoundaries } from '../../../../../agents/BoundaryParser.js'
 import { AgentOrchestrator } from '../../../../../agents/AgentOrchestrator.js'
 import { CnaiRefactorAgent } from '../../../../../agents/CnaiRefactorAgent.js'
 import { AiAppModel } from '../../../../../domain/AiAppModel.js'
-// @ts-ignore
 import { SysBuildAgent } from '../../../../../agents/SysBuildAgent.js'
 
 describe('Release v1.4.0 - Agent Orchestrator & Zero-Hallucination Search', () => {
@@ -87,7 +87,7 @@ fixed content
 	it('AiAppModel: Phase 1 & Phase 2 Zero-Hallucination Search', async () => {
 		const { VectorDB } = await import('../../../../../domain/VectorDB.js')
 		const vdbTemp = new VectorDB({ dim: 1024 })
-		const tempIndex = path.join(__dirname, 'temp-index.bin')
+		const tempIndex = path.join(os.tmpdir(), 'nan0web-temp-index.bin')
 		await vdbTemp.save(tempIndex)
 
 		const mockCSV = `name,workspace,path,tags,version,description\n@nan0web/test,packages,packages/test,,1.0.0,Test pkg`
@@ -109,7 +109,7 @@ fixed content
 			getAbsolutePath: (uri) => {
 				if (uri.endsWith('.bin')) return tempIndex
 				return uri
-			}
+			},
 		}
 
 		const ai = new AiAppModel({}, { db: mockDb })
@@ -122,5 +122,4 @@ fixed content
 		await fs.unlink(tempIndex).catch(() => {})
 		await fs.unlink(tempIndex + '.meta.json').catch(() => {})
 	})
-
 })

@@ -58,10 +58,14 @@ export class VectorDB extends Model {
     /**
      * Loads a previously persisted HNSW index and metadata from disk.
      * @param {string} filePath
+     * @param {object} [opts]
+     * @param {boolean} [opts.metaOnly=false]
      * @returns {Promise<boolean>}
      */
-    load(filePath: string): Promise<boolean>;
-    _applyMeta(metaObj: any): void;
+    load(filePath: string, opts?: {
+        metaOnly?: boolean | undefined;
+    }): Promise<boolean>;
+    _applyMeta(metaObj: any, init?: boolean): void;
 }
 import { Model } from '@nan0web/types';
 import hnswlib from 'hnswlib-node';

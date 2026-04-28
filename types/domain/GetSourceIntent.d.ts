@@ -1,7 +1,7 @@
 /**
  * GetSourceIntent — OLMUI Intent for retrieving specific files from the workspace or remote registry.
  */
-export class GetSourceIntent extends Model {
+export class GetSourceIntent extends ModelAsApp {
     static alias: string;
     static UI: {
         title: string;
@@ -21,10 +21,14 @@ export class GetSourceIntent extends Model {
     };
     /**
      * @param {Partial<GetSourceIntent> | Record<string, any>} [data] Initial state
-     * @param {Partial<import('@nan0web/types').ModelOptions> & Record<string, any>} [options] Model options
+     * @param {any} [options] Model options
      */
-    constructor(data?: Partial<GetSourceIntent> | Record<string, any>, options?: Partial<import("@nan0web/types").ModelOptions> & Record<string, any>);
+    constructor(data?: Partial<GetSourceIntent> | Record<string, any>, options?: any);
     /** @type {string} */ path: string;
     /** @type {string} */ version: string;
+    /**
+     * @returns {AsyncGenerator<any, any, any>}
+     */
+    run(): AsyncGenerator<any, any, any>;
 }
-import { Model } from '@nan0web/types';
+import { ModelAsApp } from '@nan0web/ui-cli';
