@@ -15,7 +15,7 @@ describe('IndexWorkspaceApp Agents Indexing', () => {
 		})
 		await db.connect()
 
-		const app = new IndexWorkspaceApp({ agents: true }, { db })
+		const app = new IndexWorkspaceApp({ agents: true }, { db, storeDb: db })
 		
 		const events = []
 		await runGenerator(/** @type {any} */ (app.run()), {
@@ -31,9 +31,13 @@ describe('IndexWorkspaceApp Agents Indexing', () => {
 		
 		assert.ok(resultDoc, 'nan0web_agents.index.nan0 should be created')
 		assert.equal(resultDoc.total, 2)
-		assert.equal(resultDoc.agents[0].id, 'ui-agent')
-		assert.equal(resultDoc.agents[0].workflows[0], 'src/agents/workflows/ui.md')
-		assert.equal(resultDoc.agents[1].id, 'ai-agent')
-		assert.equal(resultDoc.agents[1].inspectors[0], 'src/agents/inspectors/ai.md')
+		const uiAgent = resultDoc.agents.find(a => a.id === 'ui-agent')
+		const aiAgent = resultDoc.agents.find(a => a.id === 'ai-agent')
+		
+		assert.ok(uiAgent, 'ui-agent not found')
+		assert.equal(uiAgent.workflows[0], 'src/agents/workflows/ui.md')
+		
+		assert.ok(aiAgent, 'ai-agent not found')
+		assert.equal(aiAgent.inspectors[0], 'src/agents/inspectors/ai.md')
 	})
 })

@@ -1,6 +1,11 @@
 import { ModelAsApp } from '@nan0web/ui-cli'
 import path from 'node:path'
 import os from 'node:os'
+/**
+ * @version 1.4.2
+ * @stability Stable (Regression Fixed)
+ * @description Fixed "Mount registry is sealed" error by isolating storeDb and stabilized MCP server paths.
+ */
 import { DBFS } from '@nan0web/db-fs'
 
 /**
@@ -150,13 +155,13 @@ export class IndexWorkspaceApp extends ModelAsApp {
 		}
 		const db = this._.db || new DBFS({ root: workspaceRoot })
 
-		// Use a dedicated DB instance for the store to avoid "sealed" errors on the main app DB
-		const storeDb = this._.db || new DBFS({ root: workspaceRoot })
 		const storeDir = path.join(os.homedir(), '.nan0web/store')
-		storeDb.mount('store', new DBFS({ root: storeDir }))
+		// We isolate storeDb as a separate DBFS instance to prevent "Mount registry is sealed" error 
+		// that occurs when attempting to mount 'store' to a sealed primary database.
+		const storeDb = /** @type {any} */ (this._).storeDb || new DBFS({ root: storeDir })
 
 		const projects = []
-		const stores = ['store/nan0web_store.csv', 'store/nan0web_store.local.csv']
+		const stores = ['nan0web_store.csv', 'nan0web_store.local.csv']
 
 		for (const s of stores) {
 			const rows = await storeDb.loadDocumentAs('.csv', s, null).catch(() => null)
@@ -392,16 +397,14 @@ export class IndexWorkspaceApp extends ModelAsApp {
 
 		const db = this._.db
 
-		// Use a dedicated DB instance for the store to avoid "sealed" errors
-		const storeDb = new DBFS({ root: workspaceRoot })
 		const storeDir = path.join(os.homedir(), '.nan0web/store')
-		storeDb.mount('store', new DBFS({ root: storeDir }))
+		const storeDb = /** @type {any} */ (this._).storeDb || new DBFS({ root: storeDir })
 
 		const projects = []
-		const stores = ['store/nan0web_store.csv', 'store/nan0web_store.local.csv']
+		const stores = ['nan0web_store.csv', 'nan0web_store.local.csv']
 
 		for (const s of stores) {
-			const rows = await storeDb.loadDocumentAs('.csv', s).catch(() => null)
+			const rows = await storeDb.loadDocumentAs('.csv', s, null).catch(() => null)
 			if (Array.isArray(rows)) {
 				for (const row of rows) {
 					let dir = row.path

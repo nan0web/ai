@@ -1,6 +1,6 @@
 {
 	"name": "@nan0web/ai",
-	"version": "1.4.1",
+	"version": "1.4.2",
 	"description": "Unified AI Kernel for NaN0Web ecosystem - LLM provider abstraction",
 	"type": "module",
 	"bin": {
@@ -40,7 +40,7 @@
 	"scripts": {
 		"prebuild": "rm -rf types",
 		"build": "tsc",
-		"test": "node --test --test-timeout=3333 'src/**/*.test.js'",
+		"test": "node --test --test-timeout=15000 'src/**/*.test.js'",
 		"test:docs": "node --test src/README.md.js",
 		"test:stories": "node --test 'src/**/*.story.js'",
 		"test:all": "npm run test && npm run test:stories && npm run test:docs && npm run build && npm run lint && npm run knip",

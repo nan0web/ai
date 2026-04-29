@@ -21,7 +21,6 @@ describe('Release v1.2.0 - HNSWLib Vector RAG & MCP Server', () => {
 
 	it('VectorDB creates, saves, and loads index correctly', async () => {
 		const { VectorDB } = await import('../../../../../../src/domain/VectorDB.js')
-		const os = await import('node:os')
 		const vdb = new VectorDB({ dim: 3 })
 		vdb.addVector([1.0, 0.0, 0.0], { file: 'test1.md' })
 		vdb.addVector([0.0, 1.0, 0.0], { file: 'test2.md' })
@@ -30,7 +29,7 @@ describe('Release v1.2.0 - HNSWLib Vector RAG & MCP Server', () => {
 		assert.equal(results.length, 1)
 		assert.equal(results[0].file, 'test1.md', 'Should closest match test1.md')
 
-		const p = path.join(os.tmpdir(), 'nan0web-test-index.bin')
+		const p = path.join(__dirname, 'test-index.bin')
 		await vdb.save(p)
 		
 		const vdbLoaded = new VectorDB({ dim: 3 })
@@ -38,7 +37,7 @@ describe('Release v1.2.0 - HNSWLib Vector RAG & MCP Server', () => {
 		const loadedResults = vdbLoaded.search([0.0, 0.9, 0.0], 1)
 		assert.equal(loadedResults[0].file, 'test2.md')
 
-		await fs.unlink(p).catch(() => {}) // cleanup
+		await fs.unlink(p) // cleanup
 		await fs.unlink(p + '.meta.json').catch(() => {})
 	})
 

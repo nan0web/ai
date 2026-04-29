@@ -33,7 +33,11 @@ describe('Release v1.0.1 - Refactoring & Architecture', () => {
 	it('package.json uses correct test glob', () => {
 		const pkgPath = path.join(rootDir, 'package.json')
 		const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
-		assert.equal(pkg.scripts.test, "node --test --test-timeout=3333 'src/**/*.test.js'", 'Test script should use src/**/*.test.js glob')
+		assert.equal(
+			pkg.scripts.test,
+			"node --test --test-timeout=15000 'src/**/*.test.js'",
+			'Test script should use src/**/*.test.js glob',
+		)
 	})
 	
 	it('contains Data-Driven Docs structure', () => {

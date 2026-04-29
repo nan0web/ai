@@ -36,7 +36,7 @@ describe('IndexWorkspaceApp Story (SpecRunner)', () => {
 			{ show: '*' }      // Done
 		]
 
-		const runner = new SpecRunner({ stream, registry: { IndexWorkspaceApp } }, { workspaceRoot, db: mockDb })
+		const runner = new SpecRunner({ stream, registry: { IndexWorkspaceApp } }, { workspaceRoot, db: mockDb, storeDb: mockDb })
 		
 		for await (const it of runner.run()) { }
 		

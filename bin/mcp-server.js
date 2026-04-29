@@ -40,7 +40,10 @@ async function initDatabases() {
 		try {
 			const storePath = path.join(storeDir, store)
 			const csvContent = await fs.readFile(storePath, 'utf8')
-			const lines = csvContent.split('\n').filter(l => l.trim()).slice(1)
+			const lines = csvContent
+				.split('\n')
+				.filter((l) => l.trim())
+				.slice(1)
 			for (const line of lines) {
 				const parts = line.split(',')
 				if (parts.length >= 3) {
@@ -54,10 +57,10 @@ async function initDatabases() {
 			// Skip if file doesn't exist
 		}
 	}
-    
-    if (toLoad.length === 0) {
-        addProject('Platform Root', workspaceRoot)
-    }
+
+	if (toLoad.length === 0) {
+		addProject('Platform Root', workspaceRoot)
+	}
 
 	// Try loading each
 	for (const p of toLoad) {
@@ -70,7 +73,7 @@ async function initDatabases() {
 }
 
 const server = new Server(
-	{ name: 'nan0web-knowledge', version: '1.3.0' },
+	{ name: 'nan0web-knowledge', version: '1.4.2' },
 	{ capabilities: { tools: {} } },
 )
 
@@ -108,18 +111,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 			},
 			{
 				name: 'get_resource',
-				description: 'Retrieves a source file or documentation by logical path (e.g. @nan0web/ui/src/index.js) or relative path within a package.',
+				description:
+					'Retrieves a source file or documentation by logical path (e.g. @nan0web/ui/src/index.js) or relative path within a package.',
 				inputSchema: {
 					type: 'object',
 					properties: {
 						path: {
 							type: 'string',
 							description: 'The logical or relative path to the resource.',
-						}
+						},
 					},
 					required: ['path'],
 				},
-			}
+			},
 		],
 	}
 })
@@ -135,7 +139,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 		const maxDistance = args.max_distance || 0.18
 
 		try {
-			const instructPrefix = 'Instruct: Retrieve relevant documentation, workflows, and architectural details to assist the software engineer.\nQuery: '
+			const instructPrefix =
+				'Instruct: Retrieve relevant documentation, workflows, and architectural details to assist the software engineer.\nQuery: '
 			const vec = await embedder.embed(instructPrefix + query)
 
 			let allResults = []
@@ -216,7 +221,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				content: [{ type: 'text', text: content }],
 			}
 		} catch (err) {
-			return { content: [{ type: 'text', text: `Failed to read file ${filePath}: ${err.message}` }] }
+			return {
+				content: [{ type: 'text', text: `Failed to read file ${filePath}: ${err.message}` }],
+			}
 		}
 	}
 
