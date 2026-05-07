@@ -1,0 +1,47 @@
+# 🇺🇸 English translations for @nan0web/ai CLI and Domain models
+Starting workspace indexing...: Starting workspace indexing...
+Project [{project}] indexed ({files} files): Project [{project}] indexed ({files} files)
+Project [{project}] skipped (cache matched for {files} files): Project [{project}] skipped (cache matched for {files} files)
+Scanning files...: Scanning files...
+Generating vectors...: Generating vectors...
+Scanning [{project}] ({files} files): Scanning [{project}] ({files} files)
+Verifying Cache...: Verifying Cache...
+Verifying Cache... [{project}]: Verifying Cache... [{project}]
+'Error indexing {name} [{scope}]: {message}': 'Error indexing {name} [{scope}]: {message}'
+'Query: "{query}" (Provider: {url})': 'Query: "{query}" (Provider: {url})'
+No results found for your query.: No results found for your query.
+MCP Server successfully configured for {ide}!: MCP Server successfully configured for {ide}!
+'Error: {message}': 'Error: {message}'
+Semantic search query: Semantic search query
+Query cannot be empty: Query cannot be empty
+Filter by project name (substring): Filter by project name (substring)
+All multi-level indices updated successfully!: All multi-level indices updated successfully!
+Starting mass indexing for {projects} projects...: Starting mass indexing for {projects} projects...
+No projects found in global store at {dir}.: No projects found in global store at {dir}.
+Project {name} skipped (cache matched) in {dir}: Project {name} skipped (cache matched) in {dir}
+Project {name} indexed ({files} files) in {dir}: Project {name} indexed ({files} files) in {dir}
+Starting agents indexing (nan0web.nan0)...: Starting agents indexing (nan0web.nan0)...
+Re-index only specific projects matching this name (e.g., "-p 0HCnAI"). Skips all others.: Re-index only specific projects matching this name (e.g., "-p 0HCnAI"). Skips all others.
+Smart filter for projects (e.g. "ui", "ui*", "@scope/name", "path/to/pkg").: Smart filter for projects (e.g. "ui", "ui*", "@scope/name", "path/to/pkg").
+Filter by indexing scope: '"docs", "source", or "data".: Filter by indexing scope: "docs", "source", or "data".'
+Indexing scope: '"docs", "source", or "data".: Indexing scope: "docs", "source", or "data".'
+List indexed files with smart filtering.: List indexed files with smart filtering.
+Show index metadata and statistics.: Show index metadata and statistics.
+'Agents indexed: {agents} agents in {projects} packages.': 'Agents indexed: {agents} agents in {projects} packages.'
+'Results::': 'Results:'
+Starting global synchronization across all editors...: Starting global synchronization across all editors...
+'Global agent index updated: {total} agents found.': 'Global agent index updated: {total} agents found.'
+Workflows & Rules synced to {target}: Workflows & Rules synced to {target}
+All AI assistants (Antigravity, VSCode, etc.) are now synchronized.: All AI assistants (Antigravity, VSCode, etc.) are now synchronized.
+No package.json or nan0web.nan0 found in {dir}: No package.json or nan0web.nan0 found in {dir}
+Project {name} is already in the store.: Project {name} is already in the store.
+Project {name} added to store at {dir}: Project {name} added to store at {dir}
+Project {name} removed from store.: Project {name} removed from store.
+Project {name} not found in store.: Project {name} not found in store.
+NaN•Web AI Toolkit (nan0ai): NaN•Web AI Toolkit (nan0ai)
+Unified interface for RAG, Semantic Search and Workspace Indexing.: Unified interface for RAG, Semantic Search and Workspace Indexing.
+Usage: Usage
+Commands: Commands
+Examples: Examples
+Build multi-level HNSW vector indices for the workspace: Build multi-level HNSW vector indices for the workspace
+'Semantic search across documentation and source code (alias: query)': 'Semantic search across documentation and source code (alias: query)'

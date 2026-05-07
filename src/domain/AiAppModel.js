@@ -9,6 +9,7 @@ import { StoreApp } from './StoreApp.js'
 import { SearchSourcesIntent } from './SearchSourcesIntent.js'
 import { GetSourceIntent } from './GetSourceIntent.js'
 import { ShowIndexIntent } from './ShowIndexIntent.js'
+import { ListIndexIntent } from './ListIndexIntent.js'
 
 /**
  * AiAppModel — domain model for AI toolkit management (RAG, Indexing, MCP).
@@ -17,7 +18,6 @@ export class AiAppModel extends ModelAsApp {
 	static alias = 'nan0ai'
 	static UI = {
 		title: 'NaN0•Web AI Toolkit',
-		icon: '🤖',
 		emptyQuery: 'Search query cannot be empty.',
 	}
 
@@ -30,6 +30,7 @@ export class AiAppModel extends ModelAsApp {
 			SearchSourcesIntent,
 			GetSourceIntent,
 			ShowIndexIntent,
+			ListIndexIntent,
 		],
 		positional: true,
 	}
@@ -81,7 +82,7 @@ export class AiAppModel extends ModelAsApp {
 		let allResults = []
 
 		for (const scope of scopes) {
-			const indexer = new MarkdownIndexer({ scope }, { ...this._ })
+			const indexer = new MarkdownIndexer({ scope: /** @type {any} */ (scope) }, { ...this._ })
 			const results = await indexer.search(/** @type {any} */ (vector), opts)
 			allResults.push(...results)
 		}

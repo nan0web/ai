@@ -1,6 +1,8 @@
 import { ModelAsApp } from '@nan0web/ui-cli'
 import path from 'node:path'
 import os from 'node:os'
+import { matchProject, loadNameToDir } from './projectFilter.js'
+
 /**
  * @version 1.4.2
  * @stability Stable (Regression Fixed)
@@ -15,6 +17,16 @@ export class IndexWorkspaceApp extends ModelAsApp {
 	static alias = 'index'
 	static UI = {
 		done: 'All multi-level indices updated successfully!',
+		info: 'Starting mass indexing for {projects} projects...',
+		noProjects: 'No projects found in global store at {dir}.',
+		projectCached: 'Project {name} skipped (cache matched) in {dir}',
+		projectIndexed: 'Project {name} indexed ({files} files) in {dir}',
+		agentsStart: 'Starting agents indexing (nan0web.nan0)...',
+		scanning: 'Scanning [{project}] ({files} files)',
+		verifyingCache: 'Verifying Cache...',
+		verifyingCacheProject: 'Verifying Cache... [{project}]',
+		generatingVectors: 'Generating vectors...',
+		errorIndexing: 'Error indexing {name} [{scope}]: {message}',
 	}
 
 	static project = {
@@ -118,7 +130,10 @@ export class IndexWorkspaceApp extends ModelAsApp {
 	 * @returns {AsyncGenerator<any, any, any>}
 	 */
 	async *run() {
-		const { ask, show } = await import('@nan0web/ui')
+		const { ask, show, progress } = await import('@nan0web/ui')
+		const { MarkdownIndexer } = await import('./MarkdownIndexer.js')
+		const { Embedder } = await import('./Embedder.js')
+
 		if (this.help) {
 			const content = this.generateHelp()
 			if (this.raw) {
@@ -130,18 +145,28 @@ export class IndexWorkspaceApp extends ModelAsApp {
 			return
 		}
 		if (this.agents) {
-			yield* this.indexAgents()
+			yield* this.indexAgents({ show, progress })
 			return
 		}
-		yield* this.indexFull()
+		yield* this.indexFull({ show, progress, MarkdownIndexer, Embedder })
 	}
 
-	async *indexFull() {
-		const { show, progress } = await import('@nan0web/ui')
-		const { MarkdownIndexer } = await import('./MarkdownIndexer.js')
-		const { Embedder } = await import('./Embedder.js')
+	/**
+	 * @param {object} deps
+	 * @param {any} deps.show
+	 * @param {any} deps.progress
+	 * @param {any} deps.MarkdownIndexer
+	 * @param {any} deps.Embedder
+	 */
+	async *indexFull({ show, progress, MarkdownIndexer, Embedder }) {
+		const { t } = this._
 
+		/**
+		 * @todo Platform-lock. Another way of detecting workspace must be written,
+		 * for instance --workspace-dir or ~/.nan0web/store/config.nan0
+		 */
 		const fs = await import('node:fs')
+		const process = await import('node:process')
 		let workspaceRoot = path.resolve(/** @type {any} */ (this._).workspaceRoot || process.cwd())
 		let current = workspaceRoot
 		while (current && current !== '/') {
@@ -156,7 +181,14 @@ export class IndexWorkspaceApp extends ModelAsApp {
 		const db = this._.db || new DBFS({ root: workspaceRoot })
 
 		const storeDir = path.join(os.homedir(), '.nan0web/store')
-		// We isolate storeDb as a separate DBFS instance to prevent "Mount registry is sealed" error 
+		/**
+		 * @todo Make directory scanning agnostic.
+		 * It might be a git project, so git clone into temporary directory is possible to scan.
+		 * 1. git clone {project} ~/.nan0web/store/git/{project}
+		 * 2. mount DBFS to ~/.nan0web/store/git/{project}
+		 * 3. index the project
+		 */
+		// We isolate storeDb as a separate DBFS instance to prevent "Mount registry is sealed" error
 		// that occurs when attempting to mount 'store' to a sealed primary database.
 		const storeDb = /** @type {any} */ (this._).storeDb || new DBFS({ root: storeDir })
 
@@ -178,12 +210,14 @@ export class IndexWorkspaceApp extends ModelAsApp {
 		}
 
 		if (projects.length === 0) {
-			if (!this.silent) yield show(`No projects found in global store at ${storeDir}.`, 'error')
+			if (!this.silent) yield show(t(IndexWorkspaceApp.UI.noProjects, { dir: storeDir }), 'error')
 			return
 		}
 
 		if (!this.silent)
-			yield show(`Starting mass indexing for ${projects.length} projects...`, 'info')
+			yield show(t(IndexWorkspaceApp.UI.info, { projects: projects.length }), 'info')
+
+		const nameToDir = this.project?.startsWith('@') ? await loadNameToDir(db) : undefined
 
 		const embedderUrl =
 			/** @type {any} */ (this._).embedderUrl ||
@@ -214,7 +248,7 @@ export class IndexWorkspaceApp extends ModelAsApp {
 							ignore:
 								!proj.dir || proj.dir === '.' ? [...this.ignore, 'apps', 'packages'] : this.ignore,
 						}),
-						/** @type {any} */ ({ db: storeDb, workspaceRoot }),
+						/** @type {any} */ ({ db: storeDb, workspaceDb: db, workspaceRoot }),
 					)
 					try {
 						for await (const it of indexer.indexAll(embedder, { force: this.force })) {
@@ -232,7 +266,7 @@ export class IndexWorkspaceApp extends ModelAsApp {
 			const runAll = async () => {
 				const executing = new Set()
 				for (const proj of projects) {
-					if (this.project && !proj.name.includes(this.project)) continue
+					if (!matchProject(proj.dir, this.project || undefined, nameToDir)) continue
 					const p = worker(proj).finally(() => executing.delete(p))
 					executing.add(p)
 					if (executing.size >= this.concurrency) {
@@ -252,58 +286,11 @@ export class IndexWorkspaceApp extends ModelAsApp {
 				}
 				const it = queue.shift()
 				if (!it) continue
-
-				if (it.type === 'error') {
-					if (!this.silent) {
-						const ctx = it.project ? `[${it.project}] ` : ''
-						yield show(`${ctx}${it.message}`, 'error')
-					}
-					continue
-				}
-				if (it.type === 'scanProgress')
-					yield progress(
-						`Scanning [${it.project}] (${it.files} files)`,
-						(it.current / it.total) * 100,
-						/** @type {any} */ ({ id: `Index_Scan_${it.project}`, width: 30 }),
-					)
-				if (it.type === 'cacheCheckStart') {
-					yield progress('', 100, { id: `Index_Scan_${it.project}`, stop: 'success' })
-					yield progress('Verifying Cache...', 0, { id: `Index_Cache_${it.project}`, width: 30 })
-				}
-				if (it.type === 'cacheCheckProgress')
-					yield progress(`Verifying Cache... [${it.project}]`, (it.current / it.total) * 100, {
-						id: `Index_Cache_${it.project}`,
-						width: 30,
-					})
-				if (it.type === 'calc') {
-					yield progress('', 100, { id: `Index_Cache_${it.project}`, stop: 'success' })
-					for (const p of it.projects)
-						yield progress(
-							'Generating vectors...',
-							0,
-							/** @type {any} */ ({
-								id: `Index_${p}`,
-								title: `[${p}]`,
-								forceOneLine: true,
-								width: 30,
-							}),
-						)
-				}
-				if (it.type === 'tick')
-					yield progress(`${it.project} ${it.file}`, it.current, {
-						id: `Index_${it.project}`,
-						total: it.total,
-						forceOneLine: true,
-						width: 30,
-					})
-				if (!this.silent && it.type === 'projectCached')
-					yield show(`Project ${it.name} skipped (cache matched) in ${it.dir}`, 'info')
-				if (!this.silent && it.type === 'projectIndexed')
-					yield show(`Project ${it.name} indexed (${it.files} files) in ${it.dir}`, 'success')
+				yield* this._handleEvent(it, { show, progress, t })
 			}
 		} else {
 			for (const proj of projects) {
-				if (this.project && !proj.name.includes(this.project)) continue
+				if (!matchProject(proj.dir, this.project || undefined, nameToDir)) continue
 
 				for (const scope of this.scopes) {
 					const indexer = new MarkdownIndexer(
@@ -314,75 +301,96 @@ export class IndexWorkspaceApp extends ModelAsApp {
 							ignore:
 								!proj.dir || proj.dir === '.' ? [...this.ignore, 'apps', 'packages'] : this.ignore,
 						}),
-						/** @type {any} */ ({ db: storeDb, workspaceRoot }),
+						/** @type {any} */ ({ db: storeDb, workspaceDb: db, workspaceRoot }),
 					)
 
 					for await (const it of indexer.indexAll(embedder, { force: this.force })) {
-						if (it.type === 'error') {
-							if (!this.silent) {
-								const ctx = it.project ? `[${it.project}] ` : ''
-								yield show(`${ctx}${it.message}`, 'error')
-							}
-							continue
-						}
 						it.project = it.project || proj.name
-						if (it.type === 'scanProgress')
-							yield progress(
-								`Scanning [${it.project}] (${it.files} files)`,
-								(it.current / it.total) * 100,
-								{ id: `Index_Scan_${it.project}`, width: 30 },
-							)
-						if (it.type === 'cacheCheckStart') {
-							yield progress('', 100, { id: `Index_Scan_${it.project}`, stop: 'success' })
-							yield progress('Verifying Cache...', 0, {
-								id: `Index_Cache_${it.project}`,
-								width: 30,
-							})
-						}
-						if (it.type === 'cacheCheckProgress')
-							yield progress(`Verifying Cache... [${it.project}]`, (it.current / it.total) * 100, {
-								id: `Index_Cache_${it.project}`,
-								width: 30,
-							})
-						if (it.type === 'calc') {
-							yield progress('', 100, { id: `Index_Cache_${it.project}`, stop: 'success' })
-							for (const p of it.projects)
-								yield progress(
-									'Generating vectors...',
-									0,
-									/** @type {any} */ ({
-										id: `Index_${p}`,
-										title: `[${p}]`,
-										forceOneLine: true,
-										width: 30,
-									}),
-								)
-						}
-						if (it.type === 'tick')
-							yield progress(`${it.project} ${it.file}`, it.current, {
-								id: `Index_${it.project}`,
-								total: it.total,
-								forceOneLine: true,
-								width: 30,
-							})
-						if (!this.silent && it.type === 'projectCached')
-							yield show(`Project ${it.name} skipped (cache matched) in ${it.dir}`, 'info')
-						if (!this.silent && it.type === 'projectIndexed')
-							yield show(`Project ${it.name} indexed (${it.files} files) in ${it.dir}`, 'success')
+						yield* this._handleEvent(it, { show, progress, t })
 					}
 				}
 			}
 		}
 
-		if (!this.silent) yield show(IndexWorkspaceApp.UI.done, 'success')
+		if (!this.silent) yield show(t(IndexWorkspaceApp.UI.done), 'success')
+	}
+	/**
+	 * Shared event handler for indexing progress events
+	 * @param {any} it - indexing event
+	 * @param {object} deps
+	 * @param {any} deps.show
+	 * @param {any} deps.progress
+	 * @param {any} deps.t
+	 */
+	*_handleEvent(it, { show, progress, t }) {
+		const UI = IndexWorkspaceApp.UI
+		if (it.type === 'error') {
+			if (!this.silent) {
+				const ctx = it.project ? `[${it.project}] ` : ''
+				yield show(`${ctx}${t(it.message)}`, 'error')
+			}
+			return
+		}
+		if (it.type === 'scanProgress')
+			yield progress(
+				t(UI.scanning, { project: it.project, files: it.files }),
+				(it.current / it.total) * 100,
+				{
+					id: `Index_Scan_${it.project}`,
+					width: 30,
+				},
+			)
+		if (it.type === 'cacheCheckStart') {
+			yield progress('', 100, { id: `Index_Scan_${it.project}`, stop: 'success' })
+			yield progress(t(UI.verifyingCache), 0, { id: `Index_Cache_${it.project}`, width: 30 })
+		}
+		if (it.type === 'cacheCheckProgress')
+			yield progress(
+				t(UI.verifyingCacheProject, { project: it.project }),
+				(it.current / it.total) * 100,
+				{
+					id: `Index_Cache_${it.project}`,
+					width: 30,
+				},
+			)
+		if (it.type === 'calc') {
+			yield progress('', 100, { id: `Index_Cache_${it.project}`, stop: 'success' })
+			for (const p of it.projects)
+				yield progress(
+					t(UI.generatingVectors),
+					0,
+					/** @type {any} */ ({
+						id: `Index_${p}`,
+						title: `[${p}]`,
+						forceOneLine: true,
+						width: 30,
+					}),
+				)
+		}
+		if (it.type === 'tick')
+			yield progress(`${it.project} ${it.file}`, it.current, {
+				id: `Index_${it.project}`,
+				total: it.total,
+				forceOneLine: true,
+				width: 30,
+			})
+		if (!this.silent && it.type === 'projectCached')
+			yield show(t(UI.projectCached, { name: it.name, dir: it.dir }), 'info')
+		if (!this.silent && it.type === 'projectIndexed')
+			yield show(t(UI.projectIndexed, { name: it.name, files: it.files, dir: it.dir }), 'success')
 	}
 
-	async *indexAgents() {
-		const { show, progress } = await import('@nan0web/ui')
-
-		if (!this.silent) yield show('Starting agents indexing (nan0web.nan0)...', 'info')
+	/**
+	 * @param {object} deps
+	 * @param {any} deps.show
+	 * @param {any} deps.progress
+	 */
+	async *indexAgents({ show, progress }) {
+		const { t } = this._
+		if (!this.silent) yield show(t(IndexWorkspaceApp.UI.agentsStart), 'info')
 
 		const fs = await import('node:fs')
+		const process = await import('node:process')
 		let workspaceRoot = path.resolve(/** @type {any} */ (this._).workspaceRoot || process.cwd())
 		let current = workspaceRoot
 		while (current && current !== '/') {
@@ -485,10 +493,13 @@ export class IndexWorkspaceApp extends ModelAsApp {
 			total: allAgents.length,
 			agents: allAgents,
 		})
-
-		yield show(
-			`✅ Agents indexed: ${allAgents.length} agents in ${projects.length} packages.`,
-			'success',
-		)
+		if (!this.silent)
+			yield show(
+				t('Agents indexed: {agents} agents in {projects} packages.', {
+					agents: allAgents.length,
+					projects: projects.length,
+				}),
+				'success',
+			)
 	}
 }

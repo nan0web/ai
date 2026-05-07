@@ -4,11 +4,24 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standards.
 
-## [1.4.2] - 2026-04-30
+## [1.5.0] - 2026-05-07
+### Added
+- **Source Code Indexing**: expanded coverage to include `.jsx`, `.tsx`, and `.py` files in the `source` scope.
+- **`nan0ai ls` command**: new `ListIndexIntent` for inspecting indexed files within specific workspace indices.
+- **Smart Project Filtering**: implemented segment-based matching for `-p` flag across all commands (`ls`, `show`, `search`).
+  - Supports exact segment match (default): `-p ui` matches `packages/ui` but not `packages/ui-cli`.
+  - Supports `@scope/name` resolution via store registry: `-p @nan0web/ui` matches correctly.
+  - Supports glob/wildcard patterns: `-p ui*` matches all UI packages.
+- **Scope Filtering**: added `--scope` / `-s` support to `nan0ai show`.
+
 ### Fixed
-- Isolated `storeDb` as a separate `DBFS` instance in `IndexWorkspaceApp.js` to prevent "Mount registry is sealed" error during mass indexing.
-- Fixed relative import paths in regression tests after moving them to `src/test/releases/`.
-- Updated MCP server version to match package version.
+- **Monorepo Indexing Distortion**: `MarkdownIndexer` now correctly identifies `src` and `types` folders at any nesting level, enabling robust indexing from the workspace root.
+- **Intent Testability**: `ListIndexIntent` and `ShowIndexIntent` now support dependency injection, enabling 100% Zero-Disk (memory-only) contract testing.
+- **Path Resolution**: Fixed leading slash and incorrect `path.relative` logic in `MarkdownIndexer` that caused empty content extraction in monorepo structures.
+- **Search Resolution**: `MarkdownIndexer` now uses the correct store database for project directory lookups in `search()`.
+- **Stale cache contamination**: `nan0ai ls` now validates file paths against project directory to hide leaked files from previous indices.
+- **Mount registry safety**: Isolated `storeDb` as a separate `DBFS` instance in `IndexWorkspaceApp.js` to prevent "Mount registry is sealed" error during mass indexing.
+- **Regression Tests**: Fixed relative import paths in tests after moving them to `src/test/releases/`.
 
 ## [1.4.1] - 2026-04-29
 ### Added

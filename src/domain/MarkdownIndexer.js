@@ -1,35 +1,40 @@
-// @ts-nocheck
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Model } from '@nan0web/types'
+import { matchProject, loadNameToDir } from './projectFilter.js'
 
-/**
- * MarkdownIndexer — індексатор робочого простору.
- * Тепер працює виключно через this._.db з рекурсивним обходом.
- */
+import { Model } from '@nan0web/types'
+import { show, result, progress } from '@nan0web/ui'
+
+/** @typedef {'data' | 'docs' | 'source'} IndexerScope */
+
 export class MarkdownIndexer extends Model {
 	static maxChars = { default: 3000 }
 	static overlap = { default: 200 }
-	static targetProject = { default: null }
-	static ignore = { default: [], type: ['string'] }
-	static DEFAULT_SCOPE = 'docs'
+	static scope = { default: 'docs' }
+	static targetProject = { default: '' }
+	static targetDir = { default: '' }
+	static ignore = { default: [], type: 'string[]' }
+
+	static UI = {
+		scanning: 'Scanning projects',
+	}
 
 	/**
 	 * @param {object} [data]
-	 * @param {string} [data.scope='docs'] Indexing scope ('docs' or 'source')
+	 * @param {IndexerScope} [data.scope='docs'] Indexing scope ('docs' or 'source')
 	 * @param {string} [data.targetProject] Optional project filter
 	 * @param {string[]} [data.ignore] Directories to ignore
 	 * @param {Partial<import('@nan0web/types').ModelOptions>} [options]
 	 */
 	constructor(data = {}, options = {}) {
 		super(data, options)
-		/** @type {number} */ this.maxChars
-		/** @type {number} */ this.overlap
-		/** @type {'docs'|'source'} */ this.scope = data.scope || MarkdownIndexer.DEFAULT_SCOPE
-		/** @type {string|null} */ this.targetProject = data.targetProject || null
-		/** @type {string|null} */ this.targetDir = data.targetDir || null
-		/** @type {string[]} */ this.ignore = data.ignore || []
+		/** @type {number} Maximum chars per chunk */ this.maxChars
+		/** @type {number} Overlap length per chunk */ this.overlap
+		/** @type {IndexerScope} Indexer scope */ this.scope
+		/** @type {string} Target project */ this.targetProject
+		/** @type {string} Target directory  */ this.targetDir
+		/** @type {string[]} Paths to ignore */ this.ignore
 	}
 
 	/**
@@ -48,9 +53,7 @@ export class MarkdownIndexer extends Model {
 	 */
 	async scanRecursive(dir, baseDir = dir) {
 		const results = []
-		if (!fs.existsSync(dir)) return results
-
-		const entries = fs.readdirSync(dir)
+		const db = /** @type {any} */ (this._).workspaceDb || /** @type {any} */ (this._).db
 
 		const defaultIgnore = [
 			'node_modules',
@@ -71,6 +74,44 @@ export class MarkdownIndexer extends Model {
 		]
 		const userIgnore = Array.isArray(this.ignore) ? this.ignore : []
 
+		if (db) {
+			const entries = await db.listDir(dir).catch(() => [])
+			for (const entry of entries) {
+				const name = entry.name
+				const fullPath = entry.path
+				const relToProject = path.relative(baseDir, fullPath)
+
+				if (entry.isDirectory) {
+					if (name.startsWith('.') || defaultIgnore.includes(name) || userIgnore.includes(name))
+						continue
+					const nested = await this.scanRecursive(fullPath, baseDir)
+					results.push(...nested)
+				} else {
+					const isDocs = /\.(md|txt)$/.test(name)
+					const isSource = /\.(ts|tsx|js|jsx|py)$/.test(name)
+					const isData = /\.(yaml|yml|json|nan0|md|txt|csv)$/.test(name)
+
+					const parts = relToProject.split(path.sep)
+					const inDocsFolder = parts.includes('docs')
+					const inTypesFolder = parts.includes('src') || parts.includes('types')
+					const inDataFolder = parts.includes('data')
+
+					if (this.scope === 'docs' && (isDocs || isData) && inDocsFolder) {
+						results.push(fullPath)
+					} else if (this.scope === 'source' && isSource && inTypesFolder) {
+						results.push(fullPath)
+					} else if (this.scope === 'data' && isData && inDataFolder) {
+						results.push(fullPath)
+					}
+				}
+			}
+			return results
+		}
+
+		// Fallback to node:fs
+		if (!fs.existsSync(dir)) return results
+		const entries = fs.readdirSync(dir)
+
 		for (const name of entries) {
 			const fullPath = path.join(dir, name)
 			const relToProject = path.relative(baseDir, fullPath)
@@ -81,21 +122,19 @@ export class MarkdownIndexer extends Model {
 					if (name.startsWith('.') || defaultIgnore.includes(name) || userIgnore.includes(name))
 						continue
 
-					// Якщо ми вже в цільовій папці (docs/types), продовжуємо рекурсію без фільтрації папок
-					// Якщо ми ще на рівні кореня проекту, заходимо в будь-яку папку, але файли збиратимемо лише в цільових
 					const nested = await this.scanRecursive(fullPath, baseDir)
 					results.push(...nested)
 				} else {
 					const isDocs = /\.(md|txt)$/.test(name)
-					const isSource = /\.d\.ts$/.test(name)
-					const isData = /\.(yaml|yml|json|nan0|md|txt)$/.test(name)
+					const isSource = /\.(ts|tsx|js|jsx|py)$/.test(name)
+					const isData = /\.(yaml|yml|json|nan0|md|txt|csv)$/.test(name)
 
 					const parts = relToProject.split(path.sep)
-					const inDocsFolder = parts[0] === 'docs'
-					const inTypesFolder = parts[0] === 'types'
-					const inDataFolder = parts[0] === 'data'
+					const inDocsFolder = parts.includes('docs')
+					const inTypesFolder = parts.includes('src') || parts.includes('types')
+					const inDataFolder = parts.includes('data')
 
-					if (this.scope === 'docs' && isDocs && inDocsFolder) {
+					if (this.scope === 'docs' && (isDocs || isData) && inDocsFolder) {
 						results.push(fullPath)
 					} else if (this.scope === 'source' && isSource && inTypesFolder) {
 						results.push(fullPath)
@@ -170,14 +209,14 @@ export class MarkdownIndexer extends Model {
 	}
 
 	getWorkspaceRoot() {
-		let root = path.resolve(this._.workspaceRoot || process.cwd())
+		let root = path.resolve(/** @type {any} */ (this._).workspaceRoot || process.cwd())
 		while (root && root !== '/') {
 			if (fs.existsSync(path.join(root, 'pnpm-workspace.yaml'))) return root
 			const parent = path.dirname(root)
 			if (parent === root) break
 			root = parent
 		}
-		return path.resolve(this._.workspaceRoot || process.cwd())
+		return path.resolve(/** @type {any} */ (this._).workspaceRoot || process.cwd())
 	}
 
 	getDatasetDir() {
@@ -191,7 +230,7 @@ export class MarkdownIndexer extends Model {
 	async *indexAll(embedder, opts = { force: false }) {
 		const { DBFS } = await import('@nan0web/db-fs')
 		const root = this.getWorkspaceRoot()
-		const workspaceDb = new DBFS({ root })
+		const workspaceDb = /** @type {any} */ (this._).workspaceDb || new DBFS({ root })
 		const dsFolder = this.getDatasetDir()
 
 		const { VectorDB } = await import('./VectorDB.js')
@@ -226,7 +265,8 @@ export class MarkdownIndexer extends Model {
 			},
 		]
 
-		yield { type: 'scanStart', total: projects.length }
+		const t = this._.t
+		yield progress(t(MarkdownIndexer.UI.scanning), 0, projects.length)
 
 		// Scanning projects for files recursively
 		let scanned = 0
@@ -234,13 +274,7 @@ export class MarkdownIndexer extends Model {
 			const absDir = path.join(root, proj.dir)
 			proj.files = await this.scanRecursive(absDir, absDir)
 			scanned++
-			yield {
-				type: 'scanProgress',
-				current: scanned,
-				total: projects.length,
-				project: proj.name,
-				files: proj.files.length,
-			}
+			yield progress(proj.name, scanned, projects.length)
 		}
 
 		const totalFiles = projects.reduce((acc, p) => acc + (p.files?.length || 0), 0)
@@ -284,7 +318,7 @@ export class MarkdownIndexer extends Model {
 			let needsRebuild = false
 
 			for (const absPath of proj.files) {
-				const relPath = '/' + path.relative(this._.workspaceRoot || '', absPath)
+				const relPath = workspaceDb.relative(absPath)
 				const content = await workspaceDb.loadDocumentAs('.txt', relPath).catch(() => '')
 
 				if (content) {
@@ -444,10 +478,11 @@ export class MarkdownIndexer extends Model {
 	async search(query, opts = {}) {
 		const { DBFS } = await import('@nan0web/db-fs')
 		const root = this.getWorkspaceRoot()
-		const workspaceDb = new DBFS({ root })
+		const workspaceDb = /** @type {any} */ (this._).workspaceDb || new DBFS({ root })
 		const dsFolder = this.getDatasetDir()
 		const { VectorDB } = await import('./VectorDB.js')
 		const { Embedder } = await import('./Embedder.js')
+		const { matchProject, loadNameToDir } = await import('./projectFilter.js')
 
 		const files = await workspaceDb.listDir(dsFolder).catch(() => [])
 		const indexFiles = files.filter(
@@ -456,14 +491,30 @@ export class MarkdownIndexer extends Model {
 
 		let allResults = []
 
-		const embedderUrl = this._.embedderUrl || process.env.EMBEDDER_URL || 'http://localhost:1234/v1'
+		const embedderUrl =
+			/** @type {any} */ (this._).embedderUrl ||
+			process.env.EMBEDDER_URL ||
+			'http://localhost:1234/v1'
 		const embedder = new Embedder({ baseURL: embedderUrl })
 
-		const isVector = Array.isArray(query) || (query && query.buffer instanceof ArrayBuffer)
-		const queryVector = opts.strict || isVector ? query : await embedder.embed(query)
+		const isVector =
+			Array.isArray(query) ||
+			(query &&
+				typeof query !== 'string' &&
+				/** @type {any} */ (query).buffer instanceof ArrayBuffer)
+		const queryVector =
+			opts.strict || isVector ? query : await embedder.embed(/** @type {string} */ (query))
+
+		const nameToDir = opts.project?.startsWith('@')
+			? await loadNameToDir(/** @type {any} */ (this._).db || workspaceDb)
+			: undefined
 
 		for (const f of indexFiles) {
-			if (opts.project && !f.name.includes(opts.project.replace(/\//g, '__'))) continue
+			const nameMatch = f.name.match(/^([^-]+)-(.+)-index\.bin$/)
+			if (!nameMatch) continue
+			const projectId = nameMatch[2].replace(/__/g, '/')
+
+			if (!matchProject(projectId, opts.project || undefined, nameToDir)) continue
 
 			const vdb = new VectorDB({}, { db: workspaceDb })
 			const loaded = await vdb.load(f.path, { metaOnly: opts.strict }).catch((e) => {
@@ -476,15 +527,17 @@ export class MarkdownIndexer extends Model {
 			if (opts.strict) {
 				results = Array.from(vdb._metadata.values()).map((meta) => ({ ...meta, distance: 0 }))
 			} else {
-				results = vdb.search(queryVector, opts.limit || 10)
+				results = vdb.search(/** @type {number[]} */ (queryVector), opts.limit || 10)
 			}
 
-			if (!opts.strict && opts.maxDistance) {
-				results = results.filter((r) => r.distance <= opts.maxDistance)
+			if (!opts.strict && opts.maxDistance !== undefined) {
+				results = results.filter((r) => r.distance <= (opts.maxDistance || 0))
 			}
 			if (opts.strict) {
 				results = results.filter(
-					(r) => r.content && r.content.toLowerCase().includes(query.toLowerCase()),
+					(r) =>
+						r.content &&
+						r.content.toLowerCase().includes(/** @type {string} */ (query).toLowerCase()),
 				)
 			}
 

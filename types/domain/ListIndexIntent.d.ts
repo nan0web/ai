@@ -1,11 +1,12 @@
 /**
- * ShowIndexIntent — Intent to display metadata about indexed workspace packages.
+ * ListIndexIntent — Intent to list individual files within workspace indices.
+ * Unlike ShowIndexIntent (which shows index metadata per project),
+ * this lists the actual indexed file paths inside a specific index.
  */
-export class ShowIndexIntent extends ModelAsApp {
+export class ListIndexIntent extends ModelAsApp {
     static alias: string;
     static UI: {
         title: string;
-        icon: string;
     };
     static project: {
         help: string;
@@ -27,10 +28,10 @@ export class ShowIndexIntent extends ModelAsApp {
         default: boolean;
     };
     /**
-     * @param {Partial<ShowIndexIntent> | Record<string, any>} [data] Initial state
+     * @param {Partial<ListIndexIntent> | Record<string, any>} [data] Initial state
      * @param {any} [options] Model options
      */
-    constructor(data?: Partial<ShowIndexIntent> | Record<string, any>, options?: any);
+    constructor(data?: Partial<ListIndexIntent> | Record<string, any>, options?: any);
     /** @type {string|null} */ project: string | null;
     /** @type {string|null} */ scope: string | null;
     /** @type {boolean} */ json: boolean;

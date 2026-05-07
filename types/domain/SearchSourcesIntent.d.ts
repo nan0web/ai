@@ -5,7 +5,6 @@ export class SearchSourcesIntent extends ModelAsApp {
     static alias: string;
     static UI: {
         title: string;
-        icon: string;
     };
     static query: {
         help: string;

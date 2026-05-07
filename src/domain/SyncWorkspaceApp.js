@@ -11,10 +11,10 @@ import { DBFS } from '@nan0web/db-fs'
 export class SyncWorkspaceApp extends ModelAsApp {
 	static alias = 'sync'
 	static UI = {
-		syncStarted: '🔄 Starting global synchronization across all editors...',
-		agentsUpdated: '✅ Global agent index updated: {total} agents found.',
-		workflowsSynced: '📦 Workflows & Rules synced to {target}',
-		done: '✨ All AI assistants (Antigravity, VSCode, etc.) are now synchronized.',
+		syncStarted: 'Starting global synchronization across all editors...',
+		agentsUpdated: 'Global agent index updated: {total} agents found.',
+		workflowsSynced: 'Workflows & Rules synced to {target}',
+		done: 'All AI assistants (Antigravity, VSCode, etc.) are now synchronized.',
 	}
 
 	/**

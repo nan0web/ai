@@ -1,23 +1,47 @@
 # 🇺🇦 Ukrainian translations for @nan0web/ai CLI and Domain models
-🔍 Starting workspace indexing...: 🔍 Початок індексації воркспейсу...
-✅ Project [{project}] indexed ({files} files): ✅ Проект [{project}] проіндексовано ({files} файлів)
-✅ Project [{project}] skipped (cache matched for {files} files): ✅ Проект [{project}] пропущено (кеш співпав для {files} файлів)
+Starting workspace indexing...: Початок індексації воркспейсу...
+Project [{project}] indexed ({files} files): Проект [{project}] проіндексовано ({files} файлів)
+Project [{project}] skipped (cache matched for {files} files): Проект [{project}] пропущено (кеш співпав для {files} файлів)
 Scanning files...: Сканування файлів...
 Generating vectors...: Створення векторів...
-🔎 Query: "{query}" (Provider: {url}): 🔎 Запит: "{query}" (провайдер: {url})
-📭 No results found for your query.: 📭 Нічого не знайдено за вашим запитом.
-🚀 MCP Server successfully configured for {ide}!: 🚀 MCP Server успішно налаштовано для {ide}!
-❌ Error: {message}: ❌ Помилка: {message}
+Scanning [{project}] ({files} files): Сканування [{project}] ({files} файлів)
+Verifying Cache...: Перевірка кешу...
+Verifying Cache... [{project}]: Перевірка кешу... [{project}]
+'Error indexing {name} [{scope}]: {message}': 'Помилка індексації {name} [{scope}]: {message}'
+Query: '"{query}" (Provider: {url}): Запит: "{query}" (провайдер: {url})'
+No results found for your query.: Нічого не знайдено за вашим запитом.
+MCP Server successfully configured for {ide}!: MCP Server успішно налаштовано для {ide}!
+'Error: {message}': 'Помилка: {message}'
 Semantic search query: Запит для семантичного пошуку
 Query cannot be empty: Запит не може бути порожнім
 Filter by project name (substring): Фільтр за назвою проекту (substring)
-🎉 All multi-level indices updated successfully!: 🎉 Індексацію воркспейсу завершено успішно (All multi-level indices updated)!
+All multi-level indices updated successfully!: Усі багаторівневі індекси успішно оновлено!
+Starting mass indexing for {projects} projects...: Початок масової індексації для {projects} проєктів...
+No projects found in global store at {dir}.: Не знайдено жодного проєкту в глобальному сховищі за адресою {dir}.
+Project {name} skipped (cache matched) in {dir}: Проєкт {name} пропущено (кеш співпав) у {dir}
+Project {name} indexed ({files} files) in {dir}: Проєкт {name} проіндексовано ({files} файлів) у {dir}
+Starting agents indexing (nan0web.nan0)...: Початок індексації агентів (nan0web.nan0)...
 Re-index only specific projects matching this name (e.g., "-p 0HCnAI"). Skips all others.: Реіндексація специфічного проєкту за назвою (напр. "-p 0HCnAI"). Решта ігнорується.
-
+Smart filter for projects (e.g. "ui", "ui*", "@scope/name", "path/to/pkg").: Розумний фільтр проєктів (напр. "ui", "ui*", "@scope/name", "path/to/pkg").
+Filter by indexing scope: '"docs", "source", or "data".: Фільтр за областю індексації: "docs", "source" або "data".'
+Indexing scope: '"docs", "source", or "data".: Область індексації: "docs", "source" або "data".'
+List indexed files with smart filtering.: Список проіндексованих файлів з розумною фільтрацією.
+Show index metadata and statistics.: Показати метадані та статистику індексів.
+'Agents indexed: {agents} agents in {projects} packages.': 'Проіндексовано агентів: {agents} агентів у {projects} пакетах.'
+'Results::': 'Результати:'
+Starting global synchronization across all editors...: Початок глобальної синхронізації у всіх редакторах...
+'Global agent index updated: {total} agents found.': 'Глобальний індекс агентів оновлено: знайдено {total} агентів.'
+Workflows & Rules synced to {target}: Воркфлоу та правила синхронізовано з {target}
+All AI assistants (Antigravity, VSCode, etc.) are now synchronized.: Усі AI асистенти (Antigravity, VSCode тощо) синхронізовані.
+No package.json or nan0web.nan0 found in {dir}: Не знайдено package.json або nan0web.nan0 у {dir}
+Project {name} is already in the store.: Проєкт {name} вже є у сховищі.
+Project {name} added to store at {dir}: Проєкт {name} додано до сховища за адресою {dir}
+Project {name} removed from store.: Проєкт {name} видалено зі сховища.
+Project {name} not found in store.: Проєкт {name} не знайдено у сховищі.
 NaN•Web AI Toolkit (nan0ai): NaN•Web AI Інструментарій (nan0ai)
 Unified interface for RAG, Semantic Search and Workspace Indexing.: Уніфікований інтерфейс для RAG, Семантичного пошуку та індексації робочого простору.
 Usage: Використання
 Commands: Команди
 Examples: Приклади
 Build multi-level HNSW vector indices for the workspace: Побудова багаторівневих HNSW векторних індексів для робочого простору
-Semantic search across documentation and source code (alias: query): Семантичний пошук по всій документації та вихідному коду (аліас: query)
+'Semantic search across documentation and source code (alias: query)': 'Семантичний пошук по всій документації та вихідному коду (аліас: query)'

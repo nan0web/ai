@@ -1,5 +1,6 @@
 import { ModelAsApp } from '@nan0web/ui-cli'
 import { Model } from '@nan0web/types'
+import { matchProject, loadNameToDir } from './projectFilter.js'
 
 /**
  * ShowIndexIntent — Intent to display metadata about indexed workspace packages.
@@ -19,6 +20,14 @@ export class ShowIndexIntent extends ModelAsApp {
 		positional: true,
 	}
 
+	static scope = {
+		help: 'Filter by index scope: "docs", "source", or "data".',
+		type: 'string',
+		alias: 's',
+		options: ['docs', 'source', 'data'],
+		default: null,
+	}
+
 	static json = {
 		help: 'Output results in JSON format',
 		type: 'boolean',
@@ -32,6 +41,7 @@ export class ShowIndexIntent extends ModelAsApp {
 	constructor(data = {}, options = {}) {
 		super(data, options)
 		/** @type {string|null} */ this.project
+		/** @type {string|null} */ this.scope
 		/** @type {boolean} */ this.json
 	}
 
@@ -56,8 +66,11 @@ export class ShowIndexIntent extends ModelAsApp {
 		}
 
 		let workspaceRoot = path.resolve(/** @type {any} */ (this._).workspaceRoot || process.cwd())
-		const db = new DBFS({ root: workspaceRoot })
+		const db = /** @type {any} */ (this._).db || new DBFS({ root: workspaceRoot })
 		const dsFolder = '.datasets'
+
+		const filter = this.project === 'index' || this.project === 'all' ? null : this.project
+		const nameToDir = filter?.startsWith('@') ? await loadNameToDir(db) : undefined
 
 		const files = await db.listDir(dsFolder).catch(() => [])
 		const metaFiles = files.filter((f) => f.name.endsWith('.bin.meta.json'))
@@ -75,8 +88,8 @@ export class ShowIndexIntent extends ModelAsApp {
 				const scope = nameMatch[1]
 				const projectId = nameMatch[2].replace(/__/g, '/')
 
-				const filter = this.project === 'index' || this.project === 'all' ? null : this.project
-				if (filter && !projectId.toLowerCase().includes(filter.toLowerCase())) continue
+				if (!matchProject(projectId, filter || undefined, nameToDir)) continue
+				if (this.scope && scope !== this.scope) continue
 
 				results.push({
 					scope,

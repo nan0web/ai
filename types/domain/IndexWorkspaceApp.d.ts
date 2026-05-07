@@ -5,6 +5,16 @@ export class IndexWorkspaceApp extends ModelAsApp {
     static alias: string;
     static UI: {
         done: string;
+        info: string;
+        noProjects: string;
+        projectCached: string;
+        projectIndexed: string;
+        agentsStart: string;
+        scanning: string;
+        verifyingCache: string;
+        verifyingCacheProject: string;
+        generatingVectors: string;
+        errorIndexing: string;
     };
     static project: {
         help: string;
@@ -83,7 +93,40 @@ export class IndexWorkspaceApp extends ModelAsApp {
      * @returns {AsyncGenerator<any, any, any>}
      */
     run(): AsyncGenerator<any, any, any>;
-    indexFull(): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ProgressIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
-    indexAgents(): AsyncGenerator<import("@nan0web/ui/types/core/Intent.js").ProgressIntent | import("@nan0web/ui/types/core/Intent.js").ShowIntent, void, unknown>;
+    /**
+     * @param {object} deps
+     * @param {any} deps.show
+     * @param {any} deps.progress
+     * @param {any} deps.MarkdownIndexer
+     * @param {any} deps.Embedder
+     */
+    indexFull({ show, progress, MarkdownIndexer, Embedder }: {
+        show: any;
+        progress: any;
+        MarkdownIndexer: any;
+        Embedder: any;
+    }): AsyncGenerator<any, void, unknown>;
+    /**
+     * Shared event handler for indexing progress events
+     * @param {any} it - indexing event
+     * @param {object} deps
+     * @param {any} deps.show
+     * @param {any} deps.progress
+     * @param {any} deps.t
+     */
+    _handleEvent(it: any, { show, progress, t }: {
+        show: any;
+        progress: any;
+        t: any;
+    }): Generator<any, void, unknown>;
+    /**
+     * @param {object} deps
+     * @param {any} deps.show
+     * @param {any} deps.progress
+     */
+    indexAgents({ show, progress }: {
+        show: any;
+        progress: any;
+    }): AsyncGenerator<any, void, unknown>;
 }
 import { ModelAsApp } from '@nan0web/ui-cli';

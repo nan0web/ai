@@ -7,8 +7,7 @@ import { Model } from '@nan0web/types'
 export class SearchSourcesIntent extends ModelAsApp {
 	static alias = 'search'
 	static UI = {
-		title: 'Semantic Search',
-		icon: '🔍',
+		title: 'Search Sources',
 	}
 
 	static query = {
@@ -112,7 +111,7 @@ export class SearchSourcesIntent extends ModelAsApp {
 		let allResults = []
 
 		for (const scope of scopesToSearch) {
-			const indexer = new MarkdownIndexer({ scope }, { ...this._ })
+			const indexer = new MarkdownIndexer({ scope: /** @type {any} */ (scope) }, { ...this._ })
 			const results = await indexer.search(this.query, {
 				limit: Number(this.limit) || 10,
 				strict: this.strictSearch,
@@ -136,7 +135,7 @@ export class SearchSourcesIntent extends ModelAsApp {
 		} else {
 			const fs = await import('node:fs/promises')
 			const path = await import('node:path')
-			let md = `────────────────────────────────────────\n🎉 Results:\n────────────────────────────────────────\n\n`
+			let md = `────────────────────────────────────────\nResults:\n────────────────────────────────────────\n\n`
 
 			for (const r of results) {
 				const filePath = r.file || 'unknown'
@@ -160,7 +159,7 @@ export class SearchSourcesIntent extends ModelAsApp {
 					}
 				} catch (e) {}
 
-				md += `### 📦 Package: ${pkg} | 📄 File: ${filePath} | 📝 Lines: ${startLine}-${endLine}\n`
+				md += `### Package: ${pkg} | File: ${filePath} | Lines: ${startLine}-${endLine}\n`
 				md += `**Score:** ${r.score.toFixed(4)}\n\n`
 				md += `\`\`\`markdown\n${r.content}\n\`\`\`\n\n`
 				md += `────────────────────────────────────────\n`

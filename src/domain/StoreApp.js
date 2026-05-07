@@ -167,6 +167,7 @@ class StoreAdd extends ModelAsApp {
 			return
 		}
 
+		const { t } = this._
 		const workspaceRoot = /** @type {any} */ (this._).workspaceRoot || process.cwd()
 		const targetDir = path.resolve(process.cwd(), this.path)
 		const relPath = path.relative(workspaceRoot, targetDir)
@@ -193,7 +194,8 @@ class StoreAdd extends ModelAsApp {
 		}
 
 		if (!name) {
-			if (!this.raw) yield show(`❌ No package.json or nan0web.nan0 found in ${relPath}`, 'error')
+			if (!this.raw)
+				yield show(t('No package.json or nan0web.nan0 found in {dir}', { dir: relPath }), 'error')
 			return
 		}
 
@@ -209,7 +211,7 @@ class StoreAdd extends ModelAsApp {
 		if (!Array.isArray(store)) store = []
 
 		if (store.find((r) => r.name === name)) {
-			if (!this.raw) yield show(`ℹ️ Project ${name} is already in the store.`, 'info')
+			if (!this.raw) yield show(t('Project {name} is already in the store.', { name }), 'info')
 			return
 		}
 
@@ -223,7 +225,8 @@ class StoreAdd extends ModelAsApp {
 		})
 
 		await db.saveDocument('store/nan0web_store.local.csv', store)
-		if (!this.raw) yield show(`✅ Project ${name} added to store at ${relPath}`, 'success')
+		if (!this.raw)
+			yield show(t('Project {name} added to store at {dir}', { name, dir: relPath }), 'success')
 		yield result(name, true)
 	}
 }
@@ -269,6 +272,7 @@ class StoreRemove extends ModelAsApp {
 			return
 		}
 
+		const { t } = this._
 		const workspaceRoot = /** @type {any} */ (this._).workspaceRoot || process.cwd()
 		const db = this._.db || new DBFS({ root: workspaceRoot })
 		const storeDir = path.join(os.homedir(), '.nan0web/store')
@@ -284,10 +288,12 @@ class StoreRemove extends ModelAsApp {
 
 		if (store.length < initialLen) {
 			await db.saveDocument('store/nan0web_store.local.csv', store)
-			if (!this.raw) yield show(`✅ Project ${this.nameArg} removed from store.`, 'success')
+			if (!this.raw)
+				yield show(t('Project {name} removed from store.', { name: this.nameArg }), 'success')
 			yield result(this.nameArg, true)
 		} else {
-			if (!this.raw) yield show(`❌ Project ${this.nameArg} not found in store.`, 'error')
+			if (!this.raw)
+				yield show(t('Project {name} not found in store.', { name: this.nameArg }), 'error')
 		}
 	}
 }

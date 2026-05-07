@@ -5,12 +5,11 @@ export class AiAppModel extends ModelAsApp {
     static alias: string;
     static UI: {
         title: string;
-        icon: string;
         emptyQuery: string;
     };
     static command: {
         help: string;
-        options: (typeof GetSourceIntent | typeof SearchSourcesIntent | typeof IndexWorkspaceApp | typeof SyncWorkspaceApp | typeof StoreApp | typeof ShowIndexIntent)[];
+        options: (typeof GetSourceIntent | typeof SearchSourcesIntent | typeof IndexWorkspaceApp | typeof SyncWorkspaceApp | typeof StoreApp | typeof ListIndexIntent)[];
         positional: boolean;
     };
     /**
@@ -40,4 +39,4 @@ import { SyncWorkspaceApp } from './SyncWorkspaceApp.js';
 import { StoreApp } from './StoreApp.js';
 import { SearchSourcesIntent } from './SearchSourcesIntent.js';
 import { GetSourceIntent } from './GetSourceIntent.js';
-import { ShowIndexIntent } from './ShowIndexIntent.js';
+import { ListIndexIntent } from './ListIndexIntent.js';
